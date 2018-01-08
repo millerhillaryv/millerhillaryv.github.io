@@ -11,9 +11,9 @@ This website is broken down into two sections:
 
     Includes work in R, R Shiny, and Flex dashboard
 
-    > [GitHub repository](url)
+    > [GitHub repository](https://github.com/liamkl/CBEAT)
     
-    > [Interactive Webpage](url) *functions best with Safari
+    > [Interactive Webpage](https://millerhillaryv.shinyapps.io/senateBEAT) *hosted by Rshiny; functions best with Safari
     
     > [Raw Webpage R markdown](url): the single Rmarkdown knits into entire website
     
