@@ -12,6 +12,7 @@ This website is broken down into two sections:
     Includes work in R, R Shiny, and Flex dashboard
 
     > [GitHub repository](url)
+    
     > [Interactive Webpage](url) *functions best with Safari
     
 - **Analysis of Crime rates in the 1970s**
