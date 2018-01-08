@@ -1,37 +1,35 @@
 ## Welcome to GitHub Pages
 
-You can use the [editor on GitHub](https://github.com/millerhillaryv/millerhillaryv.github.io/edit/master/index.md) to maintain and preview the content for your website in Markdown files.
+This website is broken down into two sections:
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+1. Projects
+2. Assignments (homework and smaller projects)
 
-### Markdown
+### Projects
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+- **Senate BEAT (Senate Bill Exploratory Analysis and Tracking)**
 
-```markdown
-Syntax highlighted code block
+    Includes work in R, R Shiny, and Flex dashboard
 
-# Header 1
-## Header 2
-### Header 3
+    > [GitHub repository](url)
+    > [Interactive Webpage](url) *functions best with Safari
+    
+- **Analysis of Crime rates in the 1970s**
 
-- Bulleted
-- List
+    Includes work in R and SAS
 
-1. Numbered
-2. List
+### Assignments (separated by course)
 
-**Bold** and _Italic_ and `Code` text
+#### Regression Analysis 
 
-[Link](url) and ![Image](src)
-```
+  Includes work in R
+  
+  
+#### Data Sceience (R)
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+  Includes work in R
 
-### Jekyll Themes
+#### Social and Biological Networks (Python)
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/millerhillaryv/millerhillaryv.github.io/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+  Includes work in Python
 
-### Support or Contact
-
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
