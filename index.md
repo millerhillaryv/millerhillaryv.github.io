@@ -21,16 +21,16 @@ This website is broken down into two sections:
 
 ### Assignments (separated by course)
 
-#### Regression Analysis 
+#### Regression Analysis (R)
 
-  Includes work in R
+
   
   
 #### Data Sceience (R)
 
-  Includes work in R
+
 
 #### Social and Biological Networks (Python)
 
-  Includes work in Python
+
 
