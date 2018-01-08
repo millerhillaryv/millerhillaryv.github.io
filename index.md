@@ -23,7 +23,7 @@ This website is broken down into two sections:
     
     > [Github page with raw file and pdf version of final report](https://github.com/millerhillaryv/millerhillaryv.github.io/tree/master/network_models_for_the_study_of_hiv_aids) 
 
-- **Analysis of Crime rates in the 1970s**
+- **Regression Analysis of the Effect of Punishment Regimes on Crime Rates in 1960**
 
     Includes work in R and SAS
 
