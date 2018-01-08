@@ -5,6 +5,8 @@ This website is broken down into two sections:
 1. Projects (please note that the first two projects were group-based)
 2. Assignments (homework and smaller projects)
 
+Link to repository: https://github.com/millerhillaryv/millerhillaryv.github.io 
+
 ### Projects
 
 - **Senate BEAT (Senate Bill Exploratory Analysis and Tracking)**
