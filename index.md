@@ -15,7 +15,7 @@ This website is broken down into two sections:
     
     > [Interactive Webpage](https://millerhillaryv.shinyapps.io/senateBEAT) *hosted by Rshiny; functions best with Safari
     
-    > [Raw Webpage R markdown](url): the single Rmarkdown knits into entire website
+    > [R markdown for webpage](https://github.com/millerhillaryv/millerhillaryv.github.io/blob/master/senate_beat/senateBEAT.Rmd): the single Rmarkdown knits into entire website
     
 - **Network Models for the Study of HIV/AIDS**
 
