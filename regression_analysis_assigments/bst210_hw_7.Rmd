@@ -1,0 +1,468 @@
+---
+title: 'BST 210 HW #7'
+author: "Hillary Miller"
+date: "November 8, 2017"
+output:
+  word_document: default
+  html_document: default
+---
+
+BST 210 HOMEWORK #7
+
+Due 8:00 AM, Wednesday, November 15, 2017
+
+For this assignment, you are welcome to work with one or two colleagues (maximum of three people working together) and turn in this assignment together, or you can work alone, your choice. (This is not the second project yet, but just a regular homework.)
+
+
+###1. A study was performed to identify risk factors associated with giving birth to a low birth weight baby (< 2500 grams). More information is included in the “background” file. To control for the important factor of mother’s age, one “case” (with low birth weight) was matched to three “controls” (without low birth weight), matching on mother’s age.  STRATUM is the matching variable, with LOW as the outcome variable. Focus on looking at the (linear) effects of other factors, namely LWT, SMOKE, HT, UI, and PTD to predict low birth weight, appropriately adjusting for matching using conditional logistic regression.
+
+```{r}
+hw7data <- read.table("C:/Users/millerhillaryv/Desktop/HSPH/BST210/BST 210 homework/HW7/hw7data.txt", header=TRUE, quote="\"")
+
+dat <- hw7data
+
+names(dat) <- tolower(names(dat))
+```
+
+####(a)	Perform a backward elimination model selection method “by hand” using all three controls matched with each case. What important predictor variable(s) are you left with? Write a one or two sentence summary of your findings, suitable for inclusion in a manuscript.
+
+**For the 'by hand' backward elimination, I predetermined a removal of p>.15. Based on this selection procedure, I was left with only one variable, PTD (History of Premature Labor (0 = None, 1 = Yes)) in my model. Based on the model, the odds ratio of having low birth weight (low=1) with a history of premature labor (ptd=1) is 6.939 more than for women without a history of premature labor (ptd=0) for women within the same age group.  We found the 95% confidence interval to be [2.177,22.12].**
+
+
+```{r}
+##fit all; will remove variables based on a .15 cut off
+library(survival)
+fitall <- clogit(low ~ lwt + smoke + ht + ui + ptd + strata(stratum), data=dat)
+summary(fitall)
+```
+
+```{r}
+##removing the varialbe with the highest pvalue, ht
+library(survival)
+backselect <- clogit(low ~ lwt + smoke + ui + ptd + strata(stratum), data=dat)
+summary(backselect)
+```
+
+
+```{r}
+##based on results above, removing lwt
+library(survival)
+backselect <- clogit(low ~ smoke + ui + ptd + strata(stratum), data=dat)
+summary(backselect)
+```
+
+```{r}
+##based on results above, removing ui
+library(survival)
+backselect <- clogit(low ~ smoke + ptd + strata(stratum), data=dat)
+summary(backselect)
+```
+
+```{r}
+##based on results above, removing smoke
+library(survival)
+backselect <- clogit(low ~ ptd + strata(stratum), data=dat)
+summary(backselect)
+```
+
+```{r}
+condfinal <- backselect
+```
+
+
+(b)	Compare your results of the model you end up with above (using all three controls per case) to that of the model using just “control = 2” and “case = 1” (i.e., a matched pair analysis, ignoring controls 3 and 4). Which model seems to perform better? Why? Which model would you prefer? Why?
+
+**The confidence intervals for the matched pair is wider than for those with stratum (i.e. the standard errors are bigger), which indicates the age stratum model performs better. If matching on ptd only, and the case and control for the matched pair both have ptd=1 or ptd=0, then that matched pair is not usable for analysis. Matching with 3 or 4 controls will allow more information gained. The number of events (29) is the same for both models, but the size of n is much greater in the model from part a (116 vs. 58). Ultimately, I prefer the model the full matched analysis, which makes use of all available data.**
+
+```{r}
+library(dplyr)
+dat2 <- dat %>% filter(obs < 3)
+
+```
+
+```{r}
+##fit all; will remove variables based on a .15 cut off
+fitall <- clogit(low ~ lwt + smoke + ht + ui + ptd + strata(stratum), data=dat2)
+summary(fitall)
+```
+
+```{r}
+##removing highest p-value, ht
+backselect <- clogit(low ~ lwt + smoke + ui + ptd + strata(stratum), data=dat2)
+summary(backselect)
+```
+
+```{r}
+##removing highest p-value, ui
+backselect <- clogit(low ~ lwt + smoke + ptd + strata(stratum), data=dat2)
+summary(backselect)
+```
+
+```{r}
+##removing highest p-value, lwt
+backselect <- clogit(low ~ smoke + ptd + strata(stratum), data=dat2)
+summary(backselect)
+```
+```{r}
+##removing highest p-value, ptd
+matchfinal <- clogit(low ~ ptd + strata(stratum), data=dat2)
+summary(matchfinal)
+```
+
+```{r}
+summary(condfinal)
+```
+
+
+(c)	Go back to using all of the controls for the rest of this problem. It was thought that mother’s age would be an important confounding variable. In your model above from part (a) (using all controls), add in the effects of AGE. What do you find? Does that make sense? Briefly explain.
+
+**When you add the effects of age into the model, the beta coefficient of age is 0 (or NA) and the coefficient for PTD is unchanged. This makes sense, because you have already incorporated age into the model via the matching process, and controlled for it that way. Adding the age variable into the model does not provide additional information, and it should not be added.**
+
+```{r}
+agetest <- clogit(low ~ ptd + age + strata(stratum), data=dat)
+summary(agetest)
+```
+
+
+
+(d)	Another investigator suggests that if integer mother’s age was matched on, one could use AGE (rather than STRATUM) as the matching variable. Do you agree or not? Briefly explain. And, if you did that, how do your results change? Which do you prefer (and why)?
+
+**Yes, I agree that this is posssible. While certain ages (such as age=19) are part of more than one strata, pooling these together may alter the beta coefficients but does not lead to inaccurate results. As long as there is at least 1 case and 1 control per strata, the results are still okay, even if the individual stratum (here age integer) are different sizes. Matching this way increases the information in each strata, and reduces the number of strata. I'd prefer to match on age, rather than strata, because the CIs for the model with age are tighter, due to the additional information per strata. Since age was the only matching factor here, we are not losing information. However, if we had matched on more than one variable (such as age and smoke), the information could be lost or results skewed by pooling values of age.**
+
+```{r}
+agetest <- clogit(low ~ ptd + strata(age), data=dat)
+summary(agetest)
+summary(condfinal)
+```
+
+
+(e)	Overall, do we have any statistical evidence that it was important to adjust for (matched) AGE or STRATUM? Why or why not? Briefly explain. (However, if one designs a study using matching, one should analyze the study using matching. And, if one matches on strata based on age, one cannot estimate the influence of age on the outcome.)
+
+**No, there is not statistical evidence that it was important to adjust for age - age is not a confounder, based on the 10% rule of thumb of the beta coefficients. Additionally, age is not an indepedent predictor of the outcome. However, because we matched on age in the study design, we should keep it as a matching factor in the model used for analysis, because our beta coefficients would not be accurate in the unconditional logistic model.**
+
+```{r}
+##testing if age is a confounder
+ageconfound1 <- glm(low ~ ptd, family="binomial"(link="logit"), data=dat)
+ageconfound2 <- glm(low ~ ptd + age, family="binomial"(link="logit"), data=dat)
+ageeffect <- glm(ptd ~ age, family="binomial"(link="logit"), data=dat)
+ageindep <- glm(low~age, family="binomial"(link="logit"),data=dat)
+summary(ageconfound1)
+summary(ageconfound2)
+summary(ageeffect)
+summary(ageindep)
+```
+
+
+(f)	Can we assess whether or not age is an effect modifier of any of the other variables you have found to be statistically significant above? If so, assess potential effect modification, or if not, briefly explain why not.
+
+**Yes, we can add in the interaction term to see if age is an effect modifier. We will not add in the main effects of age, as it is already incorporated into the model from the strata. However, there is no evidence that age is an effect modifier of PTD (P=.535) on the outcome of low birthweight.** (Used P-value instead of LRT because only one additional term added to the model)
+
+```{r}
+mod1f <- clogit(low ~ ptd + age*ptd + strata(stratum), data=dat)
+summary(mod1f)
+
+```
+
+
+(g)	Finally, compare your results to that where you use (unconditional) logistic regression on the whole sample, and you adjust for age as a covariate. Is this a good approach to use? Why or why not?
+
+**This is not a good approach to use. Because this is matched on cases and controls, we do not know sampling fractions, so they cannot be adjusted for. Additionally, the result of log regression show smaller standard errors on the results of the correlation between cases and controls from the same matched set; and the estimates are slightly different. Since case-control sampling was part of the study design, the conditional logistic regression (and therefore max likelihood estimation) should be used instead.** 
+ 
+ 
+
+```{r}
+unconditional <- glm(low ~ ptd + age, family="binomial"(link="logit"), data=dat)
+summary(unconditional)
+summary(condfinal)
+```
+
+
+
+2. A large study was performed looking at the dose-response effects of cigarette smoking on lung cancer incidence in British male physicians. The data to be analyzed were presented in Frome (Biometrics, 1983) and originally were collected by Doll and Hill. The data are given in the “fromelungcancer” file. We’ll be fitting a variety of models and making model comparisons using likelihood ratio tests, Akaike’s information criteria, assessment of goodness of fit, and related methods.
+
+
+```{r}
+dat2 = read.table("fromelungcancer2.txt")
+
+colnames(dat2) = c("smokedur", "cigpday", "cases", "manyears")
+head(dat2)
+
+##making cig per day a leveled factor
+```
+
+
+(a)	Our main interest is in the effects of CIGPDAY on lung cancer incidence. Do we have any evidence that (linear) SMOKEDUR (a surrogate for both age and smoking duration, given it is coded as age – 20, under the assumption that most smokers started smoking around age 20) is a confounder or an effect modifier of the effects of (linear) CIGPDAY on (log of) lung cancer incidence? Justify your responses, and summarize your overall findings briefly (e.g., in terms of incidence rate ratios).
+
+**Based on the two models, comparing the change in the beta coefficient for cigpday, the % change in the Beta coefficient is about 5%. Based on our 10% rule of thumb, we determine that linear smoking duration is not a meaningful confounder of the effect of cig/day on lung cancer. However, smoking duration is an independent predictor of lung cancer (P<<.01), so it's valid to keept in the model. However, we do not have evidence that linear smoking duration is an effect modifier of the effects of linear cig/day on the (log of) lung cancer incidence (P=.45).** 
+
+**When holding smoking duration constant, the incidence rate of lung cancer for those who smoke k+1 cig/day is estimated to be exp(0.066712) = 1.07 times the incidence rate of those who smoke k cig/day. We are 95% confident that the IRR of lung cancer for those who smoke k+1 cig/day versus those who smoke k cig/day is between 1.056 and 1.082, when holding smoking duration constant.**
+
+**When holding cigpday constant, the incidence rate of lung cancer for those with smoking duration k+1 is estimated to be exp(0.111457)= 1.12 times the incidence rate of those with smoking duration k. We are 95% confident that the IRR of lung cancer for those who with smoking duration k+1 versus those with smoking duration k is between 1.102 and 1.134, when holding cigpday constant.**
+
+**The incidence rate for among the population who does not smoke (cigpday=0 and smokedur=0) is estimated to be exp(-12.215635) = .00000495 cases per person-year. We are 95% confident that this incidence rate is between .00000236 and  .0000104.**
+
+
+```{r}
+##fitting the two models to check confounding
+mod2a <- glm(cases ~ cigpday, offset=log(manyears), data=dat2, family=poisson())
+
+mod2a.2 <- glm(cases ~ cigpday + smokedur, offset=log(manyears), data=dat2, family=poisson())
+
+mod2a.3 <- glm(cases ~ cigpday + smokedur + cigpday*smokedur, offset=log(manyears), data=dat2, family=poisson())
+summary(mod2a)
+summary(mod2a.2)
+summary(mod2a.3)
+
+##checking % change:
+((0.070359 - 0.066712)/0.070359 )*100
+
+##checking if smoking duration is an independent predictor
+anova(mod2a, mod2a.2, test="Chisq")
+
+##determining the Incidence Rate Ratio of lung cancer for those who smoke k+1 CIGPDAY versus those who smoke k CIGPDAY
+exp(0.066712)
+
+##determining the Incidence Rate Ratio of lung cancer for those with k+1 smokedur versus those with k smokedur
+exp(0.111457)
+
+##IR of lung cancer for those in the reference group
+exp(-12.215635)
+
+##confidence intervals
+exp(0.066712 + c(-1,1)*1.96*0.006323)
+exp(0.111457 + c(-1,1)*1.96*0.007508)
+exp(-12.215635 + c(-1,1)*1.96*0.377854)
+```
+
+
+(b)	Consider the model looking at the effects of (linear) CIGPDAY on lung cancer incidence, adjusting for (linear) SMOKEDUR (with no interaction). What is a point estimate and 95% CI for the IRR for the effects of 20 cigarettes/day, adjusting for smoking duration? Also, does this model show evidence of lack of fit? Considering how many cases of lung cancer occurred in the dataset and the number of covariate patterns, do you trust a goodness-of-fit test? Briefly comment.
+
+Because of potential evidence of lack of fit and to consider possible nonlinear effects of CIGPDAY and SMOKEDUR on lung cancer incidence, a number of additional analyses should be performed.
+
+**When holding smoking duration constant, the incidence rate of lung cancer among those who smoke k+20 cig/day is 3.8 times the incidence rate of those who smoke k cig/day. We are 95% confident that the IR of lung cancer among those who smoke k+20 cig/day versus those who smoke k cig/day is between 2.96 and 4.87, when holding smoking duration constant.**
+
+**To assess goodness of fit, generally we could check the deviance and consider overdispersion. We must alter the deviance and pearson statistic to account for the larg number of outcomes (170) and the number of covariate patterns (63). These outcomes are both close to 1, which indicate good fit. However, given the large number of covariate patterns and outcomes, these are only empircical assessments, rather than formal tests. **
+
+**We can formally check for goodness of fit by conducting a Chi-squared test comparing our model (Ho: reduced model is preferred) to the full, saturated model (Ha: full model is preferred), since our model is nested in the saturated model. Based on the results, we reject the null in favor of the full model (P=.029). However, we tpyically conduct Chi-squared tests with moderate number of degrees of freedom; this particular test has 60 degrees of freedom, and likely, the result of this test is not accurate.**
+
+
+```{r}
+##using mod2a.2 above, finding the effects of 20 CIGPDAY on IR, when adjusting for smoking duration:
+exp(coef(mod2a.2)[2]*20)
+
+##CI
+exp(20*((coef(mod2a.2)[2])-(1.96*coef(summary(mod2a.2))[2,2])))
+exp(20*((coef(mod2a.2)[2])+(1.96*coef(summary(mod2a.2))[2,2])))
+
+
+#number of total cases
+sum(dat2$cases)
+
+##number of covariate patterns
+unique.cig <- unique(dat2$cigpday)
+unique.smoke <- unique(dat2$smokedur)
+length(unique.cig)*length(unique.smoke)
+
+#found 170 cases and 63 covariate patterns
+
+##checking for overdispersion using an empirical method
+deviance(mod2a.2)/mod2a.2$df.residual
+pearson.stat1 <- sum((dat2$cases - fitted(mod2a.2))^2/fitted(mod2a.2))
+pearson.stat1/mod2a.2$df.residual
+
+#saturated model 
+mod2a.2.sat <- glm(formula = cases ~ as.factor(cigpday) + as.factor(smokedur) + as.factor(cigpday)*as.factor(smokedur), family = poisson(), 
+    data = dat2, offset = log(manyears))
+
+##DF of the two models
+mod2a.2.sat$df.residual
+mod2a.2$df.residual
+
+#chi-squared test
+anova(mod2a.2, mod2a.2.sat, test="Chisq")
+```
+
+
+(c)	Consider a model including linear and quadratic effects of both CIGPDAY and SMOKEDUR. Does this model show improvements relative to the model including only linear covariates? Using this model, calculate a point estimate and 95% CI for the IRR for the effects of 20 vs. 0 cigarettes/day, and for the effects of 40 vs. 20 cigarettes/day, adjusting for linear and quadratic SMOKEDUR. Note that these point estimates and confidence intervals are not the same due to the quadratic effects of CIGPDAY included in this model.
+
+probably do not need deviance here to compare the models
+
+**Yes the model performs better; the AIC improves here (decreases from 208.09 to 191). An Anova test comparing the null (Ho: reduced model with the linear terms only is sufficient) vs. the alternative (Ha: the full model with the quadratic terms is preferred) confirms that quadratic terms should be in the model (P<<.01).**
+
+**Adjusting for smoking duration, the incidence rate of lung cancer among those who smoke 20 cigarettes per day is 10.5 times the incidence rate of those who smoke 0 cigarettes per day. We are 95% confidence that the IR of lung cancer among those who smoke 20 cigarettes per day versus those who smoke 0 cigarettes per day is between 5.25 and 20.80, when holding smoking duration constant.**
+
+**Adjusting for smoking duration, the incidence rate of lung cancer among those who smoke 40 cigarettes per day is 2.22 times the incidence rate of those who smoke 20 cigarettes per day. We are 95% confidence that the IR of lung cancer among those who smoke 40 cigarettes per day versus those who smoke 20 cigarettes per day is between 1.498 and 3.284, when holding smoking duration constant.**
+
+
+```{r}
+#building and assesssing the model with quadratic terms
+mod2c <- glm(cases ~ cigpday + I(cigpday^2) + smokedur + I(smokedur^2), offset=log(manyears), family=poisson(), data=dat2)
+summary(mod2c)
+
+#anova test to assess if the quadratic terms are significant
+anova(mod2a.2, mod2c, test="Chisq")
+##testing for overdispersion
+deviance(mod2c)/mod2c$df.residual
+pearson.stat1 <- sum((dat2$cases - fitted(mod2c))^2/fitted(mod2c))
+pearson.stat1/mod2c$df.residual
+
+##assessing IRR for someone with 20 vs. 0 cigarettes per day 
+exp((20*coef(mod2c)[2]) + ((20^2-0^2)*(coef(mod2c)[3])))
+##IRR for someone smoking 40 vs. 20 cig/day
+exp((20*coef(mod2c)[2]) + ((40^2-20^2)*(coef(mod2c)[3])))
+
+
+##95% CI for someonw with 20 vs. 0 cig/day
+var.pool <- (20^2)*vcov(mod2c)[2,2] + (400^2)*vcov(mod2c)[3,3] + 2*(400*20)*vcov(mod2c)[2,3] # variance 
+exp(((20*coef(mod2c)[2]) + ((20^2-0^2)*(coef(mod2c)[3]))) + c(-1, 1)*1.96*sqrt(var.pool)) # 95% CI
+
+##95% CI for someonw with 40 vs. 20 cig/day
+var.pool <- (20^2)*vcov(mod2c)[2,2] + (1200^2)*vcov(mod2c)[3,3] + 2*(1200*20)*vcov(mod2c)[2,3] # variance 
+exp(((20*coef(mod2c)[2]) + ((40^2-20^2)*(coef(mod2c)[3]))) + c(-1, 1)*1.96*sqrt(var.pool)) # 95% CI
+
+```
+
+(d)	The model in (c) does not include any interaction terms. Run two interaction models, each including the linear and quadratic effects of both CIGPDAY and SMOKEDUR as main effects. In the first interaction model, just add the CIGPDAY*SMOKEDUR interaction term (one parameter). In the second interaction model, add in interactions between the linear and quadratic effects of CIGPDAY and SMOKEDUR (so four interaction parameters needed). Do we have any evidence that effect modification is occurring? Justify your response.
+
+**After running the models, I also conducted 2 hypothesis tests. The first used an Anova test to compare the null (Ho: the reduced model without the interaction terms) vs. the alternative (Ha: the full model with the interaction between cigpdayxsmokedur is preferred). Based on the results of the chi-sq anova test, we failed to reject the null, and preferred the reduced model (P=.402).**
+
+**I conducted a similar test on the model that included all interaction terms. This time, I used an Anova test to compare the null (Ho: the reduced model without the interaction terms is preferred) vs. the alternative (Ha: the full model with all possible interaction terms between linear and quadratic smokedur and cigpday, is preferred). Based on the results of the anova test, we fail to reject the null, and preferred the reduced model (P=.054). Therefore, we concluded there is not statistically sufficient evidence that effect modification is occurring. Keeping the interaction terms would be overfitting the model. **
+
+
+```{r}
+mod2d1 <- glm(cases ~ cigpday + I(cigpday^2) + smokedur + I(smokedur^2) + cigpday*smokedur, offset=log(manyears), family=poisson(), data=dat2)
+
+mod2d2 <- glm(cases ~ cigpday + I(cigpday^2) + smokedur + I(smokedur^2) + cigpday*smokedur + cigpday*I(smokedur^2) + I(cigpday^2)*smokedur + I(cigpday^2)*I(smokedur^2), offset=log(manyears), family=poisson(), data=dat2)
+
+summary(mod2d1)
+summary(mod2d2)
+
+##performing anova test on effect modification for linear cigpday and linear smokedur
+anova(mod2c, mod2d1, test="Chisq")
+
+##performing anova test on effect modification for all interaction terms
+anova(mod2c, mod2d2, test="Chisq")
+```
+
+(e)	Because quadratic effects seem to be statistically significant, we might also want to run models that were even more complicated than quadratic. Given the small number of (effectively categorical) CIGPDAY and SMOKEDUR values, using generalized additive models or restricted cubic splines does not seem appealing. Those methods are more effective when you have a truly continuous covariate. Instead, fit a model with categorical CIGPDAY and SMOKEDUR, but no interaction. Using this model, calculate a point estimate and 95% CI for the IRR for the effects of 20.4 vs. 0 cigarettes/day, and for the effects of 40.8 vs. 20.4 cigarettes/day, adjusting for categorical SMOKEDUR. Note that these point estimates and confidence intervals are not the same due to the categorical (rather than linear) effects of CIGPDAY included in this model.
+
+**Adjusting for smoking duration, the incidence rate of lung cancer among those who in the 20.4 cig/day category is estimated to be 18.2 times the incidence rate of those who are in the category that smokes 0 cig/day. We are 95% confidence that the IR of lung cancer among those in the 20.4 cig/day category versus those in the 0 cig/day category is between 5.66 and 58.45, when holding smoking duration constant.**
+
+**Holding smoking duration constant, the incidence rate of lung cancer among those who in the 40.8 cig/day category is estimated to be 2.02 times the incidence rate of those who are in the category that smokes 20.4 cig/day. We are 95% confidence that the IR of lung cancer among those in the 40.8 cig/day category versus those in the 20.4 cig/day category is between 1.29 and 3.17, when holding smoking duration constant.**
+
+
+$$IRR : log(\lambda _4 / \lambda _2) = log(\lambda 40.8 cigpday) - log(\lambda 20.4 cigpday) = (-12.5784 + 3.6059) - (-12.5784+2.9009) = 3.6059 - 2.9009 = exp(0.705) = 2.023847$$
+
+```{r}
+mod2e <- glm(cases ~ as.factor(cigpday) + as.factor(smokedur), offset=log(manyears), data=dat2, family=poisson())
+summary(mod2e)
+
+##assessing IRR for someone with 20.4 vs. 0 cigarettes per day 
+exp(coef(mod2e)[5])
+##IRR for someone smoking 40.8 vs. 20.4 cig/day
+exp(coef(mod2e)[7] - coef(mod2e)[5])
+
+##95% CI for someone with 20.4 vs. 0 cigarettes per day
+exp(coef(mod2e)[5] + c(-1, 1)*1.96*sqrt(vcov(mod2e)[5,5]))
+
+##95% CI for someonw with 40.8 vs. 20.4 cig/day
+var.diff <- vcov(mod2e)[7,7] + vcov(mod2e)[5,5] - 2*vcov(mod2e)[5,7] # variance of (40.8)-(20.4)
+exp((coef(mod2e)[7] - coef(mod2e)[5]) + c(-1, 1)*1.96*sqrt(var.diff)) # 95% CI
+
+```
+
+(f)	Consider whether one of the extensions to Poisson regression modeling would be helpful with this data analysis. Choosing either (your choice, pick one) quadratic or categorical effects of CIGPDAY and SMOKEDUR in a model (with no interaction 
+terms), suggest whether or not you feel your new model is helpful.
+
+**I elected to use the model with the quadratic terms of CIGPDAY and SMOKEDUR because it is the model with the lowest AIC thus far (191.2). First I tested for overdispersion. In reality, it does not seem that there is high deviance or poor fit in the model as is (deviance = 1.058, which is very close to 1).** 
+
+**I will further explore a model with a negative binomial distribution assumption. As expected, the beta coefficients and standard errors of the model are different, yet barely. When comparing AIC values, it seems the poisson model is more helpful for explaining the data. The AIC of the negative binomial model is 193.2 vs. 191.2 for the Poisson model. When evaluating overdispersion and the empirical Pearson chi-squared statistic for the negative binomial model, the numbers are very close to the Poisson model. I also conducted a likelihood ratio test comparing the null (Ho: reduced, Poisson model is sufficient) vs. the alternative (Ha: the full, negative binomial model is preferred), and failed to reject the null, that the reduced is sufficient (p = 0.94).**
+
+**Examining the robust variance model, I found that the % change for all standard errors was <4%, which suggests the robust variance model is unncessary.  This suggests the Poisson model is the best model to predict our outcomes, and I do not feel these new models are helpful.**
+
+```{r}
+##testing overdispersion
+deviance(mod2c)/mod2c$df.residual
+pearson.stat1 <- sum((dat2$cases - fitted(mod2c))^2/fitted(mod2c))
+pearson.stat1/mod2c$df.residual
+
+
+##testing negative binomial model - determined I would test this due to IR being different depending on age/number of smoking years
+library(MASS)
+mod.negbinom <- glm.nb(cases ~ cigpday + I(cigpday^2) + smokedur + I(smokedur^2) + offset(log(manyears)), data=dat2, link=log)
+summary(mod.negbinom)
+
+
+##testing robust variation - did the standard errors get larger by 10-20%??
+mod.robust <- glm(cases ~ cigpday + I(cigpday^2) + smokedur + I(smokedur^2), offset=log(manyears), data=dat2, family=quasipoisson())
+summary(mod.robust)
+
+robustSE <- function(fit, digits=3) {
+  Xmat <- model.matrix(terms(fit), model.frame(fit))
+  Umat <- residuals(fit, type="working") * fit$weights * Xmat
+  modelV <- summary(fit)$cov.unscaled
+  robustV <- modelV %*% t(Umat) %*% Umat %*% modelV
+  value <- cbind(fit$coef, sqrt(diag(modelV)), sqrt(diag(robustV)),
+                 sqrt(diag(robustV))/sqrt(diag(modelV)))
+  colnames(value) <- c("Estimate", "Model SE", "Robust SE", " Ratio")
+  return(round(value, digits=digits))
+}
+robustSE(mod.robust)
+
+#comparing AIC and BIC models
+AIC(mod2c, mod.negbinom)
+
+BIC(mod2c, mod.negbinom)
+
+#comparing deviance for the models
+deviance(mod.negbinom)/mod.negbinom$df.residual
+
+pearson.stat1 <- sum((dat2$cases - fitted(mod.negbinom))^2/fitted(mod.negbinom))
+pearson.stat1/mod.negbinom$df.residual
+
+
+#LRT, because the Poisson model is nested in the negative binomial model
+library(lmtest)
+lrtest(mod2c, mod.negbinom)
+
+##get the standard error estimates
+summary(mod2c)
+summary(mod.robust)
+
+#% change in the standard errors of the robust
+#intercept
+((1.358-1.405 )/1.358)*100
+#cigpday
+((.02799-.02897)/.02799)*100
+#cigpday^2
+((.0005565- .0005759)/.0005565)*100
+#smokedur
+((.06520-.06747)/.06520)*100
+#cigpday^2
+((.0007735-.0008005)/.0007735)*100
+```
+
+
+
+
+(g)	Review the various models you have run above (plus any others you may decide to run) and determine which model you think fits the data best. Briefly describe your reasoning in choosing your model, and briefly describe your findings in a few sentences, and possibly including a small table, if you think that is appropriate.
+
+**After compaing the models with the linear terms, categorical terms, interactions, and quadratics, I determined that the model that best fits the data is mod2c, which includes the linear and quadratic terms of both CIGPDAY and SMOKEDUR. This was concluded by comparing AIC/BIC values for all models. While the model with all interaction terms (mod2d2) has a slightly lower AIC, the lack of parsimony and lack of overwhelming evidence of the statistical significance of the interaction terms led me to reject this model. Additionally, based on the empirical overdispersion evaluations, I determined that the model fits the data well.**
+
+**In 2g I looked at models that do not make the assumptions of equal mean and variance or steady IR. However, after conducting a LRT comparing the negative binomial with the Poisson, I determined the reduced, Poisson model was a better fit. Furthermore, the robust variance model only resulted in standard error changes of <4%.**
+
+**Based on all evaulations completed, and the AIC table (below), the model that best fits the data, while maintaining parsimony, is:**
+
+$$log(E[cases of lung cancer]) = \beta_0 + \beta_1(cigpday) + \beta_2(cigpday^2) + \beta_3(smokedur) + \beta_4(smokedur^2) + log(t_i)$$
+$$= -16.07 + 0.156(cigpday) - 0.0019(cigpday^2) + 0.267(smokedur) - 0.0019(smokedur^2)  + log(t_i)$$
+
+```{r}
+#tables to compare AIC and BIC
+AIC(mod2d2, mod2c, mod2d1,  mod.negbinom, mod2a.2, mod2a.3, mod2a)
+BIC(mod2c, mod2d1, mod.negbinom, mod2d2, mod2a.2, mod2a.3, mod2a)
+```
+
+```{r}
+plot(anychd~group,data=dat)
+```
+

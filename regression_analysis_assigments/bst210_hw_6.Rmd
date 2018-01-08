@@ -1,0 +1,429 @@
+---
+title: 'HW #6'
+author: "Hillary Miller"
+date: "October 31, 2017"
+output:
+  word_document: default
+  html_document: default
+---
+
+##BST 210 HOMEWORK #6
+
+##Due 8:00 AM, Wednesday, November 8, 2017
+
+###For this assignment, you are welcome to work with one or two colleagues (maximum of three people working together) and turn in this assignment together, or you can work alone, your choice. (This is not the second project yet, but just a regular homework.)
+
+
+###1.	Consider again the Framingham Heart Study data set. Suppose we are interested in looking at a three-level outcome for incidence of either coronary heart disease (with the subject still alive) or death, compared to a reference group of subjects who neither died nor had coronary heart disease in the follow-up period. Thus, we want to restrict the analysis to exclude subjects with prevalent coronary heart disease (prevchd = 1), and create a three-level outcome consisting of:
+
+###1	=  no death or coronary heart disease in the follow-up period (reference category)
+
+###2	=  coronary heart disease in the follow-up period, but the subject remained alive
+
+###3	=  death from any cause in the follow-up period. 
+
+Thus, you will need to use prevchd, anychd, and death to create the outcome variable and sample to use. Using this sample, we will explore some multinomial and ordinal logistic regression models, using participant sex and continuous age as predictor variables. It might be easiest to recode sex to be an indicator for female (i.e., = 1 for female, = 0 for male). There should be 4,240 observations if you are using the Framingham dataset, with no one missing outcome, age, or sex.
+
+```{r}
+library(foreign)
+library(nnet)
+library(haven)
+library(dplyr)
+framingham <- read_dta("C:/Users/millerhillaryv/Desktop/HSPH/BST210/BST 210 lab/Lab Week 6/framingham.dta")
+
+dat <- framingham
+
+dat <- dat %>% mutate(sex= factor((sex-1))) %>% as.data.frame()
+dat <- dat %>% select(sex, age, death, prevchd, anychd) %>%filter(prevchd==0)
+dat <- dat[complete.cases(dat), ]
+
+dat <- mutate(dat, outcome = ifelse(death==1,3,
+                             ifelse(anychd==1,2,1)))
+```
+Fit four multinomial logistic regression models using age alone, sex alone, both age and sex, and finally age, sex, and their interaction, and answer the following questions:
+
+```{r}
+mod.1 = multinom(outcome ~ age, data = dat)
+
+mod.2 = multinom(outcome ~ sex, data = dat)
+
+mod.3 = multinom(outcome ~ age + sex, data = dat)
+
+mod.4 = multinom(outcome ~ age + sex + age*sex, data = dat)
+```
+
+
+```{r}
+summ.MNfit <- function(fit, digits=3){
+  s <- summary(fit)
+  for(i in 2:length(fit$lev))
+  {
+    ##
+    cat("\nLevel", fit$lev[i], "vs. Level", fit$lev[1], "\n")
+    ##
+    betaHat <- s$coefficients[(i-1),]
+    se <- s$standard.errors[(i-1),]
+    zStat <- betaHat / se
+    pval <- 2 * pnorm(abs(zStat), lower.tail=FALSE)
+    ##
+    RRR <- exp(betaHat)
+    RRR.lo <- exp(betaHat - qnorm(0.975)*se)
+    RRR.up <- exp(betaHat + qnorm(0.975)*se)
+    ##
+    results <- cbind(betaHat, se, pval, RRR, RRR.lo, RRR.up)
+    print(round(results, digits=digits))
+  }
+}
+summ.MNfit(mod.1)
+summ.MNfit(mod.2)
+summ.MNfit(mod.3)
+summ.MNfit(mod.4)
+```
+
+
+####(a)	For the model with age alone, calculate and graph the fitted probabilities for each category as a function of age. Briefly interpret your graph. Also, what is the estimated relative risk ratio and 95% CI for the effect of 10 years of age when comparing outcome 2 to outcome 1?  What is the estimated relative risk ratio and 95% CI for the effect of 10 years of age when comparing outcome 3 to outcome 1? A little harder: What is the relative risk ratio and 95% CI for the effect of 10 years of age when comparing outcome 3 to outcome 2?
+
+**We estimate that the risk ratio of having outcome 2 (coronary heart disease in the follow-up period, but the subject remained alive) to having outcome 1 (no death or coronary heart disease in the follow-up period (reference category)) for a population given of age = k+10 is 1.29 times this risk ratio for a population of age k, with 95% Confidence Interval [1.14,1.47].** 
+ 
+**We estimate that the risk ratio of having outcome 3 (death from any cause in the follow-up period) to having outcome 1 (no death or coronary heart disease in the follow-up period (reference category)) for a population given of age = k+10 is 3.21 times this risk ratio for a population of age k, with 95% Confidence Interval [2.92,3.52].**
+
+**We estimate that the risk ratio of having outcome 3 (death from any cause in the follow-up period) to having outcome 2 (coronary heart disease in the follow-up period, but the subject remained alive) for a population given of age = k+10 is 2.48 times this risk ratio for a population of age k, with 95% Confidence Interval [2.167,2.834].**
+
+
+```{r}
+summary(mod.1)
+summ.MNfit(mod.1)
+```
+
+```{r}
+curve(1/(1+ exp(coef(mod.1)[1,1]+(coef(mod.1)[1,2]*x)) + exp(coef(mod.1)[2,1]+(coef(mod.1)[2,2]*x))), col="magenta", xlab="Continuous Age", ylab="Logit(outcome)", xlim=c(30,75), ylim=c(0,1)) 
+
+curve(exp(coef(mod.1)[1,1]+(.026*x))/(1+ exp(coef(mod.1)[1,1]+(coef(mod.1)[1,2]*x)) + exp(coef(mod.1)[2,1]+(coef(mod.1)[2,2]*x))), col="red", add=T, ylim=c(0,1), xlim=c(30,75))
+curve(exp(coef(mod.1)[2,1]+(coef(mod.1)[2,2]*x))/(1+ exp(coef(mod.1)[1,1]+(coef(mod.1)[1,2]*x)) + exp(coef(mod.1)[2,1]+(coef(mod.1)[2,2]*x))), col="dodgerblue", add=T, ylim=c(0,1), xlim=c(30,75)) 
+legend(65,.6, legend=c("Outcome 1","Outcome 2", "Outcome 3"),lty=c(1,1),col=c("magenta","red", "dodgerblue")) 
+```
+
+what is the estimated relative risk ratio and 95% CI for the effect of 10 years of age when comparing outcome 2 to outcome 1?
+
+$$exp( \alpha_2 + \beta_21(x+10))/ \exp( \alpha_2+ \beta_21(x)) = \exp( \beta_2 _1 *10)$$
+
+```{r}
+##relative ridk ratio 2 to 1
+exp(coef(mod.1)[1,1]+(coef(mod.1)[1,2]*11))/exp(coef(mod.1)[1,1]+(coef(mod.1)[1,2]*1))
+exp(coef(mod.1)[1,2]*10)
+##95% CI
+exp(10*(coef(mod.1)[1,2]-(1.96*(summary(mod.1)$standard.errors[1,2]))))
+exp(10*(coef(mod.1)[1,2]+(1.96*(summary(mod.1)$standard.errors[1,2]))))
+```
+
+
+What is the estimated relative risk ratio and 95% CI for the effect of 10 years of age when comparing outcome 3 to outcome 1?
+
+$$\exp(\alpha_3 + \beta_31(x+10))/\exp(\alpha_3+\beta_31(x)) = \exp(\beta_31*10)$$
+
+```{r}
+#relative risk ratio 3  to 1
+exp(coef(mod.1)[2,1]+(coef(mod.1)[2,2]*11))/exp(coef(mod.1)[2,1]+(coef(mod.1)[2,2]*1))
+exp(coef(mod.1)[2,2]*10)
+#CI
+ exp(10*(coef(mod.1)[2,2]-(1.96*(summary(mod.1)$standard.errors[2,2]))))
+exp(10*(coef(mod.1)[2,2]+(1.96*(summary(mod.1)$standard.errors[2,2]))))
+```
+
+A little harder: What is the relative risk ratio and 95% CI for the effect of 10 years of age when comparing outcome 3 to outcome 2?
+
+```{r}
+##relative risk ratio 3 to 2
+exp(10*(coef(mod.1)[2,2]-coef(mod.1)[1,2]))
+
+#must find the covariance
+vcov(mod.1)
+##which we find to be 7.955112 * 10-6
+##CI
+exp(10*((coef(mod.1)[2,2]-coef(mod.1)[1,2])-(1.96*(sqrt(0.006387847^2 + 0.004697477^2- (2*.000007955112))))))
+exp(10*((coef(mod.1)[2,2]-coef(mod.1)[1,2])+(1.96*(sqrt(0.006387847^2 + 0.004697477^2-(2*.000007955112))))))
+```
+
+
+####(b)	For the model with sex alone, confirm that the fitted probabilities match those of an outcome × sex tabulation exactly. Also confirm that the estimated relative risk ratios for sex from your model match the relative risk ratios from the tabulation. Note that this would only occur with a “saturated model” like when you only have a single dichotomous predictor as here – this will not happen for continuous covariates, say. 
+
+**As demonstrated below, the fitted probabilities match those of an outcome x sex tabulation exactly (comparing table outcome the fitted probabilities of the model). Also, the estimated relative risk ratios for sex match the relative risk ratios from the tabulation. This can be seen from the tabulation below. (Relative Risk Ratio from the model was found using exp(B). This is true for saturated models.**
+
+```{r}
+#mod.2 = multinom(outcome ~ sex, data = dat)
+
+# Look at how fitted values compare to observed proportions
+table(dat$outcome, dat$sex)
+prop.table(table(dat$outcome, dat$sex), margin = 2)
+
+# Female fitted probs.
+fitted(mod.2)[dat$sex == 1,][1,]
+
+# Male fitted probs.
+fitted(mod.2)[dat$sex == 0,][1,]
+
+#confirming the estimated relative risk ratios are the same
+summ.MNfit(mod.2)
+
+
+##RRR level 2 to level 1 for Females (sex=1) vs. Males (sex=0)
+(239/225)/(1515/855)
+
+###RRR level 3 to level 1 for Females (sex=1) vs. Males (sex=0)
+(666/740)/(1515/855)
+
+###RRR level 3 to level 2 for Females (sex=1) vs. Males (sex=0)
+(666/740)/(239/225)
+
+#RRR comparing 3 to 2 for the fitted model 
+exp(-0.6775408--0.5114517)
+```
+ 
+
+
+
+####(c)	Use a LRT to decide between the models including both age and sex and the model including age, sex, and their interaction. What do you conclude? Are there any other models you might recommend fitting next?
+
+**Comparing the model including both age and sex and the model including age, sex and their interaction, the full model is preferred. We can reject the null that the reduced model is sufficient (P=.028). To further explore the relationship between the outcomes, I would potentially break the age varialbe up into categories, in order to see if different age groups have different outcomes that are statistically signficant. You could also test to see if quadrtic age is significant (done below). From the results of this anova test, you can see that the model with quadratic age is preferred (P=.00006) If so,  this could lead to a model that is easier to interpret.**
+
+```{r}
+#LRT will compare model 3 (reduced) and model 4 (full)
+anova(mod.4, mod.3, test="Chisq")
+```
+
+Formal hypothesis: (Ho: the reduced model, with age and sex, is sufficient) versus (H1: the full model, with age, sex and the interaction, is preferred)
+
+```{r}
+mod.5 = multinom(outcome ~ age + sex + age*sex + I(age^2), data = dat)
+anova(mod.4, mod.5, test="Chisq")
+```
+
+
+ 
+###2. Now, fit four ordinal logistic regression models using age alone, sex alone, both age and sex, and finally age, sex, and their interaction, and answer the following questions:
+
+```{r}
+###1	=  no death or coronary heart disease in the follow-up period (reference category)
+###2	=  coronary heart disease in the follow-up period, but the subject remained alive
+###3	=  death from any cause in the follow-up period.
+
+
+# NOTE:
+# We will get the negative of the coefficients and same "intercept" as in Stata if we set reverse = FALSE(default)
+
+library(VGAM)
+
+mod2.1 = vglm(outcome ~ age,
+             cumulative(parallel=TRUE, reverse=FALSE), data=dat)
+summary(mod2.1)
+
+mod2.2 = vglm(outcome ~ sex,
+             cumulative(parallel=TRUE, reverse=FALSE), data=dat)
+summary(mod2.2)
+
+mod2.3 = vglm(outcome ~ age + sex,
+             cumulative(parallel=TRUE, reverse=FALSE), data=dat)
+summary(mod2.3)
+
+mod2.4 = vglm(outcome ~ age + sex + age*sex,
+             cumulative(parallel=TRUE, reverse=FALSE), data=dat)
+summary(mod2.4)
+```
+
+
+####(a)	For the model with age alone, what is the estimated odds ratio and 95% CI for the effect of 10 years of age when comparing outcome 3 vs. outcome 1 and 2 (combined)?  Also, what is the estimated odds ratio and 95% CI for the effects of 10 years of age when comparing outcome 2 and 3 (combined) vs. outcome 1?
+
+**Due to the proportional odds assumption, these two values are equivalent. The B1 coefficient is the log Odds Ratio for being in Outcome 3 vs. combined outcome 2 and 1 for a 1 unit increase in age (or a k+1 vs. a k value of age). It is also the log Odds Ratio for being in combined outcome 3 and 2 vs. outcome 1 for a k+1 age compared to someone of k age.** 
+
+**We estimate that the odds of having outcome 3 (death from any cause in the follow-up period) to having combined outcome 1 (no death or coronary heart disease in the follow-up period (reference category))  and 2 (coronary heart disease in the follow-up period, but the subject remained alive) for a population given of age = k+10 is 2.70 times the odds ratio for a population of age k, with 95% Confidence Interval [2.498,2.920].** 
+
+**We estimate that the odds of having outcome 2 (coronary heart disease in the follow-up period, but the subject remained alive) and outcome 3 (death from any cause in the follow-up period) combined to having outcome 1 (no death or coronary heart disease in the follow-up period (reference category))  for a population given of age = k+10 is 2.70 times the odds ratio for a population of age k, with 95% Confidence Interval [2.498,2.920].** 
+```{r}
+
+```
+
+
+```{r}
+summary(mod2.1)
+#odds ratio 3 to combined 1+2 AND odds ratio for combined outcome 2 and 3 vs. outcome 1
+exp(0.099351*10)
+#CI
+exp(10*(0.099351-(1.96*0.003977)))
+exp(10*(0.099351+(1.96*0.003977)))
+```
+
+
+
+####(b)	For the model with age alone, is the proportional odds assumption satisfied or rejected?  Let’s explore this further by these additional looks at the data:  First, create a binary outcome variable that equals 1 when you are in category 3 and equals 0 when you are in category 1 or 2. Run a logistic regression model using age to predict this binary outcome. Second, create a new binary outcome variable that equals 1 when you are in category 2 or 3 and equals 0 when you are in category 1. Again, run a logistic regression model using age to predict this new binary outcome. If the proportional odds assumption holds, we would expect that the two beta coefficients for age in these two models would be close to each another. What happens in this example?  (Do the CI’s for the age beta coefficients overlap or not?)  Given this comparison of the beta coefficients, do you believe the proportional odds model assumption holds or not for the ordinal logistic regression model with age alone?
+
+
+
+**From the initial exploration, we can use an approximate likelihood ratio test between an ordinal model with the proportional odds assumption and a generalized ordinal model without the proportional odds assumption. It does not appear the proportional odds assumption holds (P<<.001). It seems we should reject the null hypothesis and conclude the proportional odds assumption is not an appropriate assumption for this data set. With further exploration and creating new variables, we find the following:**
+
+**From the new models, holding age constant, the log odds ratio of having outcome 3 (death from any cause in the follow-up period) to having combined outcome 1 (no death or coronary heart disease in the follow-up period (reference category))  and 2 (coronary heart disease in the follow-up period, but the subject remained alive) is .112 , with 95% Confidence Interval [0.103,0.121]. Alternatively, the log odds ratio of having combined outcome 3 (death from any cause in the follow-up period) and outcome 2 (coronary heart disease in the follow-up period, but the subject remained alive) to outcome 1 (no death or coronary heart disease in the follow-up period (reference category)) is .091, with 95% Confidence Interval [0.083,0.099].**
+
+**Given this comparison of the beta coefficient, it does not appear the proportional odds model assumption holds for the ordinal logistic regression model with age alone.**
+
+
+```{r}
+#testing proportionality of odds assumptions
+fit.po = vglm(outcome ~ age,
+              cumulative(parallel=TRUE, reverse=T), data=dat)
+fit.npo = vglm(outcome ~ age,
+               cumulative(parallel=FALSE, reverse=T), data=dat)
+pchisq(deviance(fit.po)-deviance(fit.npo),
+       df=df.residual(fit.po)-df.residual(fit.npo),lower.tail=F)
+
+```
+
+```{r}
+##First, create a binary outcome variable that equals 1 when you are in category 3 and equals 0 when you are in category 1 or 2.
+dat <- mutate(dat, outcome.3 = ifelse(outcome==3,1,0))
+
+##Run a logistic regression model using age to predict this binary outcome. 
+mod2.b1 = glm(outcome.3 ~ age, family="binomial"(link="logit"), data=dat)
+summary(mod2.b1)
+
+#Second, create a new binary outcome variable that equals 1 when you are in category 2 or 3 and equals 0 when you are in category 1.
+dat <- mutate(dat, outcome.2.3 = ifelse(outcome==3,1,
+                                        ifelse(outcome==2,1,0))) 
+
+##Again, run a logistic regression model using age to predict this new binary outcome.
+mod2.b2 <- glm(outcome.2.3 ~ age, family="binomial"(link="logit"), data=dat)
+summary(mod2.b2)
+
+##If the proportional odds assumption holds, we would expect that the two beta coefficients for age in these two models would be close to each another. What happens in this example?  (Do the CI’s for the age beta coefficients overlap or not?)  Given this comparison of the beta coefficients, do you believe the proportional odds model assumption holds or not for the ordinal logistic regression model with age alone?
+
+
+##comparing the log odds ratios
+coef(mod2.b1)[2]
+coef(mod2.b2)[2]
+##CI of binary with 3 against 2 and 1
+((coef(mod2.b1)[2])-(1.96*coef(summary(mod2.b1))[2,2]))
+((coef(mod2.b1)[2])+(1.96*coef(summary(mod2.b1))[2,2]))
+##CI of binary with 3 and 2 against 1
+((coef(mod2.b2)[2])-(1.96*coef(summary(mod2.b2))[2,2]))
+((coef(mod2.b2)[2])+(1.96*coef(summary(mod2.b2))[2,2]))
+```
+
+
+
+(c)	Now focus on the model with sex alone. Is the proportional odds assumption satisfied or rejected?  Let’s explore this further by these additional looks at the data:  Consider again the outcome × sex tabulation as above. With the ordinal model, we need to tabulate category 1 vs. 2 and 3 (combined) and category 1 and 2 (combined) vs. category 3. If the proportional odds assumption is satisfied, we should feel comfortable with a common odds ratio estimate for these two categorizations. What are the associated odds ratio estimates for sex to predict these categorizations based on hand calculations?  How do these compare with the ordinal logistic regression-based odds ratio estimate for sex?  Given your comparison of these odds ratio estimates, do you believe the proportional odds model assumption holds or not for the ordinal logistic regression model with sex alone?  (One could also perform the pair of logistic regressions as in 2 (b) with sex as the only predictor and compare the beta coefficients for sex in these two models. Try that if you like. ) Finally, is this ordinal logistic regression model saturated or not? Defend your answer.
+
+**Based on hand calculations, below, it does not appear the hand calculations of the odds ratios match exactly, but they are very close. The hand calculated OR for outcome 1 vs. 2 and 3 is .529, while the OR for outcome 1 and 2 vs. 3 is .554. Comparing to the ordinal logistic regression-based odds ratio of 0.539, which is between the between the two hand calculations.**
+
+**From further exploration, we can use an approximate likelihood ratio test between an ordinal model with the proportional odds assumption and a generalized ordinal model without the proportional odds assumption. It does appear the proportional odds assumption holds (P=275). It seems we should fail to reject the null hypothesis and conclude the proportional odds assumption is an appropriate assumption for this data set. With further exploration and creating new variables, we find the following:**
+
+**From the new models, holding gender constant, the odds ratio of having outcome 3 (death from any cause in the follow-up period) to having combined outcome 1 (no death or coronary heart disease in the follow-up period (reference category))  and 2 (coronary heart disease in the follow-up period, but the subject remained alive) is 0.554, with 95% Confidence Interval [.487,.631]. Alternatively, the odds ratio of having combined outcome 3 (death from any cause in the follow-up period) and outcome 2 (coronary heart disease in the follow-up period, but the subject remained alive) to outcome 1 (no death or coronary heart disease in the follow-up period (reference category)) is .529, with 95% Confidence Interval [.468,.599]. As you can see, these estimated Odds Ratios overlap.**
+
+**Given this comparison of the beta coefficient, it does appear the proportional odds model assumption holds for the ordinal logistic regression model with age alone. This model is not a saturated model. While a binary predictor, one can look at the fitted probabilities from the ordinal model and compare with the observed proportions in the data and see that they are close, but not exactly the same.**
+
+```{r}
+table(dat$outcome, dat$sex)
+```
+
+
+```{r}
+##OR for category 1 vs. 2 and 3 
+((239+666)/(225+740))/(1515/855)
+##OR for category 1 and 2 vs. 3
+(666/740)/((1515+239)/(855+225))
+##OR from model
+exp(-0.61834)
+
+#testing proportionality of odds assumptions
+fit.po = vglm(outcome ~ sex,
+              cumulative(parallel=TRUE, reverse=T), data=dat)
+fit.npo = vglm(outcome ~ sex,
+               cumulative(parallel=FALSE, reverse=T), data=dat)
+pchisq(deviance(fit.po)-deviance(fit.npo),
+       df=df.residual(fit.po)-df.residual(fit.npo),lower.tail=F)
+```
+
+
+
+```{r}
+table(dat$outcome, dat$sex)
+prop.table(table(dat$outcome, dat$sex), margin = 2)
+
+
+# Male fitted probs.
+fitted(mod2.2)[dat$sex == 0,][1,]
+# Female fitted probs.
+fitted(mod2.2)[dat$sex == 1,][1,]
+
+#confirming the estimated odds ratios are the same
+summary(mod2.2)
+```
+
+```{r}
+##Again, run a logistic regression model using age to compare the new binary outcomes.
+mod2.c1 <- glm(outcome.3 ~ sex, family="binomial"(link="logit"), data=dat)
+summary(mod2.c1)
+
+mod2.c2 <- glm(outcome.2.3 ~ sex, family="binomial"(link="logit"), data=dat)
+summary(mod2.c2)
+
+##comparing the odds ratios
+exp(coef(mod2.c1)[2])
+exp(coef(mod2.c2)[2])
+##CI of binary with 3 against 2 and 1
+exp(((coef(mod2.c1)[2])-(1.96*coef(summary(mod2.c1))[2,2])))
+exp(((coef(mod2.c1)[2])+(1.96*coef(summary(mod2.c1))[2,2])))
+##CI of binary with 3 and 2 against 1
+exp(((coef(mod2.c2)[2])-(1.96*coef(summary(mod2.c2))[2,2])))
+exp(((coef(mod2.c2)[2])+(1.96*coef(summary(mod2.c2))[2,2])))
+```
+
+
+####(d)	Do we have any evidence that the age × sex interaction is needed for ordinal logistic regression modeling?  Why or why not?
+
+**No, this interaction is not needed. Based on the approximate likelihood ratio test (P=.235) and the Wald test (P=.235) comparing the null, Ho (reduced model with age + sex) and the alternative, Ha (full mdoel with age + sex + ageXsex), we fail to reject the null hypothesis test that the reduced model is preferred.** 
+
+
+```{r}
+#testing proportionality of odds assumptions
+pchisq(deviance(mod2.3)-deviance(mod2.4), df=1, lower.tail=F)
+
+summary(mod2.4)
+```
+
+
+####(e)	Finally, assess whether or not the proportional odds assumption holds for the model including both main effects of age and sex (but not their interaction). Based on the results of this analysis, what would be your recommendations for model choices if you wanted to include continuous age in the modeling? Would you recommend using ordinal or multinomial logistic regression?  Is there anything else you might recommend?
+
+**From the approximate LRT, it does not appear the proportional odds assumption holds. We could do a multinomial regression model. One additional possibility would be to look more closely at the age variable and see if cut points may exist within the data that could be used to create categorical age data.**
+
+**However, I did a further exploration using logistic regression from the variables created in part (b) and compared the beta coefficients and the confidence intervals. Looking at the age coefficient for the model with outcome 3 vs. 2 and 1 and then outcome 2 and 3 vs. 1, Odds Ratios and 95% Confidence Intervals are 1.12 [1.11,1.34] and 1.10 [1.09,1.109], respectively. These do not overlap. Because of this, I would recommend using the multinomial logistic regression model rather than the ordinal model.**
+
+
+
+
+
+```{r}
+#testing proportionality of odds assumptions
+fit.po = vglm(outcome ~ age + sex,
+              cumulative(parallel=TRUE, reverse=T), data=dat)
+fit.npo = vglm(outcome ~ age + sex,
+               cumulative(parallel=FALSE, reverse=T), data=dat)
+pchisq(deviance(fit.po)-deviance(fit.npo),
+       df=df.residual(fit.po)-df.residual(fit.npo),lower.tail=F)
+```
+
+```{r}
+##Again, run a logistic regression model using age to compare the new binary outcomes.
+mod2.e1 <- glm(outcome.3 ~ sex + age, family="binomial"(link="logit"), data=dat)
+summary(mod2.e1)
+
+mod2.e2 <- glm(outcome.2.3 ~ sex + age, family="binomial"(link="logit"), data=dat)
+summary(mod2.e2)
+
+##comparing the odds ratios
+exp(coef(mod2.e1)[3])
+exp(coef(mod2.e2)[3])
+##CI of binary with 3 against 2 and 1
+exp(((coef(mod2.e1)[3])-(1.96*coef(summary(mod2.e1))[3,2])))
+exp(((coef(mod2.e1)[3])+(1.96*coef(summary(mod2.e1))[3,2])))
+##CI of binary with 3 and 2 against 1
+exp(((coef(mod2.e2)[3])-(1.96*coef(summary(mod2.e2))[3,2])))
+exp(((coef(mod2.e2)[3])+(1.96*coef(summary(mod2.e2))[3,2])))
+```

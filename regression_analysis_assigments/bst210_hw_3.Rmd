@@ -1,0 +1,373 @@
+---
+title: "BST210_HW_3"
+author: "Hillary Miller"
+date: "September 20, 2017"
+output:
+  word_document: default
+  html_document: default
+---
+
+##BST 210 HOMEWORK #3
+
+##Due 8:00 AM, Monday, September 25, 2016
+
+
+###Here we continue to explore data from the “Singapore Cardiovascular Cohort Study 2”, using continuous age, gender, and continuous body mass index (defined as weight/height2 in kg/m2) to predict total cholesterol (in mmol/l) of subjects. Note that 1 mmol/l (SI units) equals 38.67 mg/dl, the usual American units for cholesterol. Our main goal is to assess potential nonlinear effects of continuous covariates through the use of appropriate spline or GAM models (you have some flexibility here and only need to use one of these approaches [your choice, which may depend on your favorite statistical package] to answer the questions below).
+
+###1. First, we further explore the effects of continuous age to predict total cholesterol.
+
+####(a) Run three linear regression models using linear age, linear and quadratic age, and then either a spline or GAM modeling of age to predict total cholesterol. In one sentence, describe how you have fitted the spline or GAM model (e.g., choice of knot points, order of the polynomial, other restrictions). Plot the three sets of fitted values, look at the regression output obtained, and briefly compare the three fits. Which of the three models do you recommend as being “best” so far? Why?
+
+I'm fitting the following three models:
+$$E[tc]= \beta_0 + \beta_1(age)$$
+
+$$E[tc]= \beta_0 + \beta_1(age) +\beta_2(age^2)$$
+
+$$E[tc]= \beta_0 + f(age)$$
+
+```{r}
+library(knitr)
+knitr::opts_chunk$set(echo=TRUE)
+library(haven)
+library(ggplot2)
+library(MASS)
+library(dplyr)
+library(car)
+library(splines2)
+library(gridExtra)
+library(mgcv)
+```
+
+
+
+```{r}
+homeworkdata <-read_dta("C:/Users/millerhillaryv/Desktop/HSPH/BST210/BST 210 homework/HW3/homeworkdata.dta")
+homework <- homeworkdata
+set.seed(210)
+```
+
+```{r}
+homework$bmi<-homework$weight/((homework$height)/100)^2
+homework$BMICat<-with(homework,
+ifelse(homework$bmi < 18.5, "2",
+ifelse(homework$bmi < 25, "1",
+ifelse(homework$bmi <30, "3", "4"))))
+
+homework$bmi_sq <-homework$bmi^2
+
+##_males <-filter(homework)
+```
+
+```{r}
+homework$age_sq <- homework$age^2
+
+number1 <- data.frame("tc"=homework$tc, "age"=homework$age, "age2"=homework$age_sq)
+number1[sort(number1$age),]
+number1[sort(number1$tc),]
+
+```
+
+
+
+```{r}
+modlm=lm(tc ~ age, data=number1)  
+modquad=lm(tc ~ age + age2, data=number1) 
+modgam=gam(tc~s(age,k=4,bs="cr"), data=number1)
+```
+
+```{r}
+summary(modlm)
+summary(modquad)
+summary(modgam)
+```
+
+
+```{r}
+plot(tc~age, data=number1)
+lines(lowess(number1$tc~number1$age), col="orange", lwd=2)
+lines(number1$age,fitted(modlm),col='red')
+lm.fit2 = lm(tc ~ poly(age, 2, raw = TRUE), data = number1)
+curve(predict(lm.fit2, newdata = data.frame(age = x)), add = TRUE, col = "green") 
+curve.number1 = data.frame(x=number1$age, y=predict(modgam))
+curve.number1 = curve.number1[order(curve.number1$x),]
+
+lines(curve.number1, col="blue") 
+```
+
+
+
+**I fit a GAM model by choosing 4 knot points with the cubic regression splines based on the output of the loess curve. Based on the plot of the three fitted values, the GAM model and model with linear and quadratic age are very similar to the loess curve. Evaluating the adjusted r-squared values of each model:**
+
+```{r}
+summary(modlm)$r.sq
+summary(modquad)$r.sq
+summary(modgam)$r.sq 
+```
+
+**I would conclude that the 'best' model so far is the model of linear and quadratic age. This is due to the adjusted r-squared of the linear model being very similar to the gam model. While techincally, the gam model fits the data slightly better, the linear model is more parismonious and it is easier to interpret.** 
+
+
+
+
+
+####(b) Possibly you could confirm whether or not the linear age model is nested within your spline or GAM model by comparing your spline or GAM model to the model that also adds in linear age to your spline or GAM model. What happens when you do that? Can you tell if the linear age model is nested within your spline or GAM model? Briefly, how?
+
+We are comparing the two models:
+$$E[tc]=\beta_0 + GAM(age)$$
+$$E[tc]=\beta_0 + \beta_1(age) + GAM(age)$$
+
+We are testing whether the difference of sum of squares between the two models if very small. If so, then age adds nothing to the model, and age is nested in the GAM(age) model. 
+
+
+
+
+```{r}
+modgamage =gam(tc~s(age,k=4)+age, data=number1)
+summary(modgam)
+summary(modgamage)
+```
+
+
+
+
+```{r}
+summary(modgam)$r.sq
+summary(modgamage)$r.sq
+```
+
+```{r}
+res1 <-residuals(modgamage)
+res <- residuals(modgam)
+predict <-predict(modgamage)
+predict1 <-predict(modgam)
+```
+
+```{r}
+qqnorm(res1)
+qqline(res1)
+
+qqnorm(res)
+qqline(res)
+
+plot(res~predict)
+abline(h=0)
+plot(res1~predict1)
+abline(h=0)
+```
+
+Looking at the plots of the residuals, both the linear+gam and the gam models appear normal, with little difference in the residuals plots of the two models. 
+
+```{r}
+sum(residuals(modgam)^2)
+sum(residuals(modgamage)^2)
+```
+
+```{r}
+anova(modgam,modgamage)
+```
+
+
+**When adding linear age into the model, the adjusted r-squared value remains almost constant. When evaluating the difference in the sum of the squares, the result is close to zero, adn thus we can conclude that linear age is not adding anything to the model, and is therefore nested in the gam model.**
+
+
+
+
+####(c) Can you tell if the linear and quadratic age model is nested within your spline or GAM model? Briefly, what are your findings?
+
+
+To test if the modquad is nested inside modgam, I will run the following models:
+
+$$E[tc]=\beta_0 +  GAM(age)$$
+$$E[tc]=\beta_0 + \beta_1(age) + \beta_2(age^2) + GAM(age)$$
+
+```{r}
+modgamage2 =gam(tc~s(age,k=4)+age+age2, data=number1)
+summary(modgamage2)
+summary(modgam)
+summary(modgamage2)$r.sq 
+```
+
+
+
+```{r}
+res2 <-residuals(modgamage2)
+predict2 <-predict(modgamage2)
+```
+
+```{r}
+qqnorm(res2)
+qqline(res2)
+
+qqnorm(res)
+qqline(res)
+
+plot(res~predict)
+abline(h=0)
+plot(res2~predict2)
+abline(h=0)
+```
+
+Looking at the plots of the residuals, both the models appear normal, with little difference in the qqplots for the two models. Looking at the residual plots, the models suggest some heterscasticity as the values of age increase.
+
+```{r}
+sum(residuals(modgam)^2)
+sum(residuals(modgamage2)^2)
+```
+
+
+```{r}
+anova(modgam,modgamage2)
+```
+
+
+
+
+**When testing the semiparametric model with the addition of quadratic age, it can be concluded that quadratic age is  nested in the GAM model. Looking at the difference of the sum of the squared residuals, the result is again close to 0, indicating that age^2 does not contribute much more to the model. Additionally, we can compare the edf of the original GAM to the one with linear and quadratic age. The original contained an edf of 2.69, indicating something between a quadratic and cubic fit. However, once quadratic age was added, the edf decreased, but the nonparametric component did still provide additional information. Thus, looking at the difference of the summ of the squares and the degrees of freedom, age and age^2 are nested inside the GAM model.**
+
+
+
+
+####(d) You can also run a model using linear and quadratic age plus either a spline or GAM modeling of age, and determine how/whether we can tell if using linear and quadratic age is sufficient to model the effects of age versus a more complex spline or GAM model. Effectively, you are asking whether or not the spline or GAM modeling of age is needed after including linear and quadratic age. What are your conclusions? Be sure to perform an appropriate hypothesis test with an appropriate number of degrees of freedom.
+
+
+
+
+
+
+$$E[tc]=\beta_0+\beta_1age + \beta_2(age^2)$$
+
+$$E[tc]=\beta_0+\beta_1age + \beta_2(age^2) + f(age))$$
+Ho = \beta_3(GAM(age)) = 0
+Ha = if \beta_3(GAM(age)) !=0
+
+```{r}
+modgam2 = gam(tc~age+ age2 + s(age,k=4), data=number1)
+anova(modquad,modgam2)
+```
+
+
+**When testing the gam model with the addition of quadratic age to determine if the parametric model is sufficient, it can be concluded that the model including age and age^2 is sufficient for modeling the effects on age on tc. After conducting an F-test, the nonlinear effect of age is not statistically significant compared to the parametric model, with a p value of .06534, which is above the P<.05 threshold. Therefore, we cannot reject the null that GAM(age)=0 and cannot conlcude that adding a gam with f(age) contributes additional information to the model.**
+
+
+
+###2. Suppose that the main research question is to determine the effects of (continuous) body mass index on total cholesterol, considering (continuous) age and gender as possible confounders or effect modifiers. The goal is to flexibly model the effects of age and gender while appropriately assessing the effects of body mass index on total cholesterol. You want to (hopefully!) be able to present an easily interpretable effect of body mass index on total cholesterol to your readers.
+
+
+
+####(a) Run some models that appropriately address this research question. What final model do you recommend? Briefly justify your choice. (You don't have to include the outputs of lots of models here, but perhaps write a brief description of your approach to get to your final model.)
+
+
+Checking linearity of BMI and it's effect on cholesterol:
+
+
+```{r}
+plot(tc~bmi, data=homework)
+lines(lowess(homework$tc~homework$bmi), col="orange", lwd=2)
+```
+
+
+Since the relationship of BMI and cholesterol appears generally linear, will consider with additional potential confounders with three models:
+
+1.Linear model with BMI, age (assuming we don't know information about the associationg between age and tc), and gender (assuming we don't know there is no association between gender and tc):
+
+$$E[tc]= \beta_0 + \beta_1(bmi) + \beta_2(age) + \beta_3(gender)$$
+
+2. Spline that addresses the complexity of age in the model:
+
+$$E[tc]= \beta_0 + \beta_1(bmi) + \beta_2(spline(age)) + \beta_3(gender)$$
+
+3. A GAM that allows for age to be evaluated in a nonparametric form:
+
+$$E[tc]= \beta_0 + \beta_1(bmi) + \beta_2(GAM(age)) + \beta_3(gender)$$
+
+
+Looking at the potential effects of BMI and gender: When fitting the model with gender as a covariate, the P value for the coefficient of gender is 0.5233 > 0.05, thus gender alone is not statistically significant. When fitting the model with age, the P value for the coefficient of age is <<.001, thus age is statistically significant, and could be a confounder. From the models below, we can see that adding the main effect of gender to the model of tc~bmi does not lead to any substantial change in the coefficient estimates of bmi. The slope for bmi has decreased from 0.05825 to 0.05806 (a 0.33% decrease). Since this is much less than the 10% rule of thumb, gender does not appear to be a meaningful confounder on the effect of bmi on total cholesterol. Gender also does not appear to be an independent predictor of total cholesterol, as the p-value associated with its slope is well above the .05 threshold for statistical significance (p=.727).  
+We can also see that adding the main effect of age to the model of tc~bmi leads to the slope of bmi decreasing from 0.05825 to 0.0305255, which is above the 10% rule of thumb, concluding that age is a confounder of the effects of bmi on total cholesterol. Additionally, we see that the coefficient for the interaction term involving bmi is not statistically significant from zero (p=.49878), and therefore we conclude that gender does not act as an effect modifier of the relationship between linear BMI and total cholesterol.
+
+
+
+
+```{r}
+modg <- lm(tc~gender, data=homework)
+moda <-lm(tc~age, data=homework)
+summary(modg)
+summary(moda)
+modb <-lm(tc~bmi, data=homework)
+mod1 <-lm(tc~bmi+gender, data=homework)
+mod2 <-lm(tc~bmi+age, data=homework)
+summary(modb)
+summary(mod1)
+summary(mod2)
+modeffect <-lm(tc~bmi+age+gender+bmi:gender, data=homework)
+summary(modeffect)
+```
+
+ 
+
+1. Checking a linear model of BMI and Cholesterol, adjusting for age and gender:
+
+```{r}
+mod3<-lm(tc~bmi+age+gender, data=homework)
+summary(mod3)
+```
+
+2. checking a model of BMI and cholesterol that incorporates a piece-wise linear spline for age and also includes gender: 
+
+
+```{r}
+mod4=lm(tc~bmi+bSpline(age,df=4,degree=2)+gender, data=homework) 
+summary(mod4)
+```
+
+```{r}
+anova(mod3,mod4)
+```
+
+When conducting an f-test, we can reject the null that the coefficients of age incorporated into the model are equal to 0 (P = .01436). Therefore, the linear model of bmi with age and gender is not sufficient (when comparing models 3 and 4) to explaining the effects of BMI on TC when controlling for age and gender. 
+
+
+3. Finally, tested a model that flexibly accounts for age(incorprating as potential confounder, without concern for it's actual relationship with tc)
+
+
+```{r}
+mod5=gam(tc~bmi+s(age)+gender, data=homework) 
+summary(mod5)
+```
+
+```{r}
+anova(mod3,mod5)
+```
+
+```{r}
+modtest=gam(tc~s(bmi)+ bmi+s(age)+gender, data=homework)
+```
+
+```{r}
+summary(modtest)$r.sq
+summary(mod5)$r.sq
+```
+
+
+
+
+**Ultimately, the final model I chose that best explains the effects of BMI on Total Cholesterol while flexibly controlling for age and for age, included linear continous BMI and a GAM of age. While some information was gained from incorporating BMI in a GAM, the loss of interpretibility resulted in a decision to choose the simpler model. Considering the adjusted r-squared values for the model that included a GAM for bmi (.1787) was only slightly different than that including linear BMI (.1627), the information gained did not outdo the loss of interpretability. Initially, I had a linear model that incorporated BMI, age and gender. When conducting an f-test between the linear and the model with gam(age), we can reject the null that the coefficient of the gam(age) is 0 (p=.002822). Therefore, the linear model of bmi with age and gender is not sufficient to explaining the effects of BMI on total cholesterol when controlling for age and gender. The GAM was chosen over the spline with the intention of reproducibility and parsimony.**
+
+**I recommend the following model:**
+
+$$E[tc]= \beta_0 + \beta_1(bmi) + \beta_2(GAM(age)) + \beta_3(gender)$$
+
+####(b) Take your final model and write 1-2 summary sentences that describe the overall results of your model in a form that could appear in a manuscript. Use American units of cholesterol in this summary. Be sure to include sufficient statistical detail (confidence intervals, p-values, decimal places, etc.), clarity of adjustment factors, and interpretation (units, direction of effect) in your sentence(s). Maximum of two sentences!
+
+
+```{r}
+mod5$coefficients
+summary(mod5)$p.table
+confint.default(mod5)
+```
+
+
+
+side note: a 1 unit increase in BMI results in a  (.03035933)38.67 = 1.17 mg/dL increase in tc. confidence interval of (0.01034584)*38.67 = and (0.05037281)38.67 = .400 and 1.948
+
+
+**A 1 unit increase in bmi is associated with 1.17 units (in mg/dL) increase in total cholesterol on average, with 95% CI [0.40,1.95] and P value =0.0031. The model evaluated the linear effect of BMI on total cholesterol while controlling non-parametrically for the function of age and for gender as potential confounders.**

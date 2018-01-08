@@ -1,0 +1,241 @@
+---
+title: "Untitled"
+author: "Hillary Miller"
+date: "December 5, 2017"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+
+Suppose you wish to design a prospective cohort study assessing whether obesity (BMI ≥ 30) is associated with presence or absence of coronary heart disease (CHD) or time to CHD. Because we don’t want to wait 24 years to collect our data (!!!), a consistent four-year follow-up is planned for each subject. Future subjects were expected to look similar to those in the Framingham study.
+A pilot study of 250 Framingham-like subjects was run, excluding subjects who already had prevalent CHD. First, we look at presence or absence of obesity to predict a binary four-year CHD incidence. Subjects who died within four years without having a prior CHD were viewed as not developing CHD. Among the 250 subjects, 3 of 31 obese (BMI ≥ 30) subjects developed CHD within 4 years and 11 of 219 non-obese subjects developed CHD within 4 years. Using logistic regression, the estimated odds ratio comparing obese vs. non-obese subjects was 2.025974 with 95% confidence interval (0.5325236, 7.707772).
+Next, we look at presence or absence of obesity to predict time to CHD, with right censoring occurring at four years for subjects who did not have CHD by that time. Subjects who died without having a prior CHD were viewed as being censored at their time of death. Among these same 250 subjects, the estimated hazard ratio from the proportional hazards model comparing obese vs. non-obese subjects was 1.990321 with 95% confidence interval (0.5552206, 7.134780). Not surprisingly, given only 250 subjects, we did not reach statistical significance with either analysis. View this data as informative historical data (and ignore the analysis of the full Framingham data farther below for now).
+
+
+#(a)	Determine the sample size needed for 90% power in a two-sided 0.05 level test to compare proportions of incident CHD over four years in obese vs. non-obese subjects if, under the alternative hypothesis, we had proportions with incident CHD as observed in the 250 subjects. Keep the proportions of obese and non-obese subjects the same as observed in the pilot study.
+
+We would need 354 individuals in group 1 (obese group) and 2495 individuals in group 2 (non-obese group). In total, 2849 subjects to reach 90% power.
+
+
+Ho:  Pobses - Pnonobese = 0
+H1: Pobese - Pnonobese !=0
+
+n(total) = 250
+
+```{r}
+library(Hmisc)
+#proportions in incident CHD for obese
+3/31
+#proportions in incident CHD for non-obese
+11/219
+#fraction of observations in group1
+31/250
+```
+
+First, I'm curious about the power of the current sample size, just for comparison:
+
+```{r}
+#finding power given the sample size
+bpower(p1 = (3/31), p2 = (11/219), alpha = 0.05, n1 = 31, n2 = 219)
+```
+
+With a power of 24%, it's likely the sample sizes will need to be considerably larger to reach a 90% power. 
+
+```{r}
+#finding the sample size for .90 power with same proportions
+bsamsize(p1 = (3/31), p2 = (11/219), fraction = (31/250), alpha = 0.05, power = .90)
+
+```
+
+```{r}
+354+2495
+```
+
+We would need 354 individuals in group 1 (obese group) and 2495 individuals in group 2 (non-obese group). In total, 2849 subjects. 
+
+
+
+
+# (b) Determine the sample size needed for 90% power in a two-sided 0.05 level log rank test (compare survival curves) to compare times to CHD in obese vs. non-obese subjects if, under the alternative hypothesis, we had a hazard ratio as observed in the 250 subjects. Keep the proportions of obese vs. non-obese subjects the same as observed, as well as the proportion of censored observations
+
+In order to reach 90% power for this for test, you would need a total of 2222 subjects; 276 in the obese group and 1946 in the non-obese group.
+
+
+Ho: Sa = So aka Ha = Ho
+Ha: Sa != So aka Ha != Ho
+HR = 1.990321
+
+```{r}
+library(powerSurvEpi)
+#find proportion of censored observations
+  #censored obese:
+31-3 
+28
+  #censored non-obese:
+219 - 11
+208
+```
+
+```{r}
+#finding the power of the current study
+#Code help:
+#nE -number of participants in the experimental group.
+#nC - number of participants in the control group.
+
+powerCT.default(nE = 31, nC = 219, pE = (3/31), pC = (11/219), RR = 1.990321)
+```
+
+Again, with a power of about 20%, we will likely need many more individuals 
+
+```{r}
+#Code help:
+
+#k ratio of participants in group E (experimental group) compared to group C (control
+#group)
+#pE probability of failure in group E (experimental group) over the maximum time
+#period of the study (t years).
+  #pC probability of failure in group C (control group) over the maximum time period
+#of the study (t years).
+ssizeCT.default(power = .9, k = (31/219), pE = (3/31), pC = (11/219), RR = 1.990321, alpha = 0.05)
+```
+
+```{r}
+276+1946
+```
+
+```{r}
+#checking that these numbers will results in power = 90%
+powerCT.default(nE = 276, nC = 1946, pE = (3/31), pC = (11/219), RR = 1.990321)
+```
+
+In order to reach 90% power for this for test, you would need a total of 2222 subjects; 276 in the obese group and 1946 in the non-obese group.
+
+
+# (c) How do the sample sizes change if we designed each of the studies above to have an equal number of obese vs. non-obese subjects? Is the total sample size larger or smaller? Does that make intuitive sense? Briefly comment on the feasibility of such a design.
+
+If the number in each group are equal, the total sample size needed to reach a power of 90% is smaller. The number needed dropped from 2849 to 1318 for the logistic regression, and from 2222 to 1304 for the Cox P-H model.
+
+This makes sense, because you have a fixed sample size, the power will go down if individuals are randomized more prevalently into one group over another. In continuation, if determining a sample size, more individuals will be needed for the group with a smaller proportion of subjects before hitting a threshold to determine signficance. Regarding feasibility, we can't just assign obesity to subjects, so we'd have to recruit them. (So while possible, this could potentially result in selection bias.) 
+
+```{r}
+#finding sample size for 90% power for logistic:
+bsamsize(p1 = (3/31), p2 = (11/219), fraction = .5, alpha = 0.05, power = .90)
+#finding sample size for 90% power based on log rank test (Cox PH):
+ssizeCT.default(power = .9, k = 1, pE = (3/31), pC = (11/219), RR = 1.990321, alpha = 0.05)
+```
+```{r}
+#calc total needed for each test:
+659*2
+652*2
+```
+
+
+
+# (d) If you had to pick “one primary outcome” for your study, would you prefer to design this study to have a binary or a time-to-event outcome? Briefly justify your choice.
+
+As with all studies, it depends on the primary question of interest. Yet, if looking at it from a feasibility or power study, then the
+time-to-event outcome design would be most desirable, because a power of 90% can be reached with fewer subjects (and therefore cost less
+money). Additionally, the CoxPH survival analysis takes censoring into account, so would be desireable here. 
+
+
+# (e) In practice, one would use more “rounded” values for OR’s, HR’s, or proportions of obese or censored observations than done above, as you would not exactly believe the estimates from the sample size of 250. It would also be important to perform a range of calculations to show power or sample size under different scenarios. Using your “one primary outcome” selected above, develop an appropriate sample size based on your parameter of interest (either OR or HR) of 2.0 for 90% power for a two-sided 0.05 level test. Then, develop a table and/or graph for a range of 1.5 to 2.5 in increments of 0.1 for your parameter of interest, for a fixed sample size to show changes in power resulting under different scenarios. Also include a sentence or two summarizing your results that would be appropriate to include in a protocol or grant application. Feel free to add or adjust anything here that seems reasonable to you – different reasonable researchers might use different assumptions and so would end up with different sample sizes, so be sure that your sentences summarizing your results include all necessary information about your assumptions.
+
+
+
+```{r}
+3/31
+
+```
+
+As indicated, I would choose the HR rather than the OR approach. I would not assume that patients will be sampled equally, but rather assume roughly the proportion found in the smaller sample (31/219) = 0.1415525, and round to .14. Therefore, the sample size needed is:
+
+```{r}
+ssizeCT.default(power = .9, k = .14, pE = (3/31), pC = (11/219), RR = 2, alpha = 0.05)
+```
+```{r}
+#checking that these numbers will results in power = 90%
+powerCT.default(nE = 270, nC = 1929, pE = (3/31), pC = (11/219), RR = 2)
+```
+
+```{r}
+# Determining the power for a fixed sample size and an array of HRs
+hr = seq(1.5,2.5,.1)
+for (i in hr){ 
+  print(paste("HR:", i, "N:", 2199)) 
+  print(paste("Power:", round(powerCT.default(nE = 270, nC = 1929, pE = (3/31), pC = (11/219), RR = i),5) )) 
+  
+}
+
+
+power <- powerCT.default(nE = 270, nC = 1929, pE = (3/31), pC = (11/219), RR = hr)
+plot(hr, power)
+
+```
+
+Grant write up:
+This is a pilot study and sample size will be limited by available resources, with 2199 being the minimal sample size needed to achieve
+90% power, given the expected proportions of obese and non-obese patients. While preliminary power analysis showed that 2199 patients
+will result in 90% power to detect a difference of HR 2 between treatment groups in time to CHD, the above graph demonstrates how
+changes in the value of HR can impact the power at this given sample size. These calculations are based on prior CHD studies studies
+that showed a HR of 2, from randomly sampled patients resulting the a proportion of obese patients to non-obese patients of 0.14.
+
+
+# (f) Analyses from the “full” Framingham data set are below, restricting follow-up to four years to develop CHD for each subject and eliminating subjects with incident CHD or missing BMI. How close were your assumptions in your sample size calculations to the “truth” from the full data set? Were the sample sizes that were actually achieved sufficient for high power? Briefly comment.
+
+When comparing the incidenct CHD in the exposed (obese) group, the % change in my sample size calculations to the "truth" is about 19%,
+yet the absolute difference is not large. When comparing the incident CHD in the unexposed, the % change from my sample size
+calculations to the truth is about 4%, with again, a small absolute value. For comparing OR and HR, the % changes are about 15% and 19%,
+respectively. Overall, the predicted effect from the sample calculations is a little high, compared to what was found in the framingham.
+However, the Framingham study did not achieve high power. As a rule of thumb, it's best for a study to have a power of at least 80%. The
+power for the logistic and Cox PH models are about 73% and 78%, respecively. The time to event power was higher than the binary power. 
+
+
+Assumptions of OR and proportion of incident CHD:
+```{r}
+#Comparing 250 sample and actual data
+#incident CHD in  exposed
+(3/31 - 39/500)
+#%change
+(3/31 - 39/500)/(3/31)
+#incident CHD in unexposed
+11/219 - 168/3514
+#%change
+(11/219 - 168/3514)/(11/219)
+#OR of exposed vs. unexposed
+(3/31)/(11/219)- (39/500)/(168/3514)
+((3/31)/(11/219)- (39/500)/(168/3514))/((3/31)/(11/219))
+#HR of exposed vs. unexposed
+1.990321 - 1.617147   
+(1.990321 - 1.617147)/1.990321
+```
+
+Checking to see if the sample sizes from the study actually achieved high power:
+```{r}
+#logistic
+bpower(p1 = (39/539), p2 = (168/3682), alpha = 0.05, n1 = 539, n2 = 3682)
+
+#Cox
+powerCT.default(nE = 539, nC = 3682, pE = (39/539), pC = (168/3682), RR = 1.617147)
+
+```
+
+
+# (g) A colleague noted that the relative risk, the odds ratio, and the hazard ratio estimates in these analyses were similar. Also, that logistic regression, the log rank test, and the Cox model gave similar P-values. Briefly discuss whether these observations make sense or not.
+
+The Hazard Ratio should be very similar to the RR when the risk is constant over time. Additionally, Risk Ratio should be approximately equal to the Odds Ratio when the outcome is rare. So, because the outcome is rare and the risk is assumed constant over time based on  BMI, it makes sense that these calculations are similar. Also, because these are such similar estimates under the current study, the variance/standard errors will be similar, resulting in similar p-values. 
+
+Relative risk: 1.585807       
+Odds ratio: 1.6315       
+Hazard ratio: 1.617147  
+P-values
+Logistic regression: 0.008     
+log-rank test: 0.0063
+Cox model: 0.007
+
+Essentially, the similarities of these make sense because while Hazard ratio is the instantaneous risk over the study period, and relative risk represents the cumulative risk over the study period, since Obese = 0,1 is the only factor, we would assume the instantaneous risk of CHD from being Obese vs. not obese is the same at time t as over a period of time. 
+
+     
+
+

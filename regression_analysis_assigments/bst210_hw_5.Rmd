@@ -1,0 +1,338 @@
+---
+title: "Untitled"
+author: "Hillary Miller"
+date: "October 12, 2017"
+output:
+  word_document: default
+  html_document: default
+---
+
+
+BST 210 HOMEWORK #5
+
+Due 8:00 AM, Wednesday, October 18, 2017
+
+
+(If you turn in the homework by 5:00 PM Tuesday, October 17, we will try to grade this before the midterm. Regardless, HW solutions will be posted late next week, ahead of the midterm.) Problems may be done in part using any computer package, but you must add in appropriate summaries and interpretation (not just the computer output). For this homework assignment, you are encouraged to interact with other students, but please submit your own solution set, providing responses in your own words.
+
+Consider the Framingham Heart Study data set, that we used previously in a lab session. Here we focus on predicting “death from any cause” (mortality) over the 24 year period of follow-up, and focus on continuous BMI (body mass index), participant sex, and age at exam (or age category) as independent variables. The data set and a help file are available under “Datasets” at the bottom of the course Canvas home page.
+
+
+```{r}
+library(foreign)
+library(rms)
+library(sandwich)
+```
+
+```{r}
+library(haven)
+framingham <- read_dta("C:/Users/millerhillaryv/Desktop/HSPH/BST210/BST 210 lab/Lab Week 6/framingham.dta")
+
+dat <- framingham
+```
+
+
+Ultimately, I determined not to remove the missing data from this dataset. Removing observations with missing data resulted in removal of well over 10% of the data (closer to 50%), and since we do not at  this time have effective ways of dealing with missing data, I opted to keep all records in tact. 
+
+###a) Use logistic regression to assess the effects of (continuous) BMI on mortality. Briefly interpret your model. What are your conclusions? Also estimate an odds ratio and a 95% confidence interval for the effect of a 5-unit change in BMI.
+
+First, just to visualize the data:
+
+```{r}
+library(dplyr)
+p <- dat %>% 
+  ggplot(aes(group=death, x=death, y=bmi))
+p + geom_boxplot() + theme(legend.position = "none", title = element_text(color = "Brown")) + ylab("BMI") +
+  xlab("Mortality") +
+  ggtitle("Distribution of BMI in relation to Mortality")
+```
+
+The median for the BMI of the group that died is slightly higher than those who did not. both of the distribtuions have a positive skew with upper outliers. 
+
+
+
+Testing whether Ho: B1= 0 (BMI is not a significant predictor of death)
+
+or
+
+Ha: $$\beta_1 \neq 0$$ (BMI  is a significant predictor of death)
+
+```{r}
+lm.1 <- glm(death ~ bmi, family="binomial"(link="logit"), data=dat)
+summary(lm.1)
+```
+
+The fitted regression model is: $$logit(death) = log(p/1-p) = \beta_0 + \beta_1(bmi)$$
+
+Which in the linear form becomes:
+
+$$p = exp{(\beta_0 + \beta_1(bmi))}/(1 + exp{\beta_0 + \beta_1(bmi)})$$
+
+Here, the fitted model is $$logit(death) = -1.949618 + 0.050932(bmi = 1, 2, 3...)$$
+
+```{r}
+exp(coef(lm.1)[2])
+```
+
+
+
+Using the Wald test, we reject the null hypothesis at the α = 0.05 level, and conclude that the slope for BMI is siginificantly different from 0 (P<.01). In other words, we conclude that there exists a statistically significant association between risk of mortality and an increase in BMI. 
+
+(general conclusion) The odds of a subject with a bmi=k+1 is said to be $$exp(0.050932) ≈1.052252$$ more likely to die than those with a bmi=k (where k is any value of BMI). The  estimated odds ratio associated with a 1 unit increase in BMI is 1.052.
+
+
+#####For a subject with BMI 5 higher (k+5, where k is a BMI value):
+
+```{r}
+##OR
+exp(coef(lm.1)[2]*5)
+##CI
+exp(5*((coef(lm.1)[2])-(1.96*coef(summary(lm.1))[2,2])))
+exp(5*((coef(lm.1)[2])+(1.96*coef(summary(lm.1))[2,2])))
+```
+
+
+
+**The odds of mortality within the study time frame for subjects of a particular BMI=k+5 are said to be exp(.0509*5)= 1.290023 times greater than the odds for a subject of the study with BMI=k (BMI 5 units lower). With 95% confidence, the odds ratio describing the association between BMI and mortality is between 1.196 and 1.391 (which does not include 1).** 
+
+
+
+###b) One way to assess possible nonlinear effects of BMI (on the logit scale) is to run a logistic regression model including (linear) BMI and (quadratic) BMI2 in the same model. Generate a BMI2 term, run models containing only the linear term and then including both the linear and quadratic terms, and determine if the quadratic term is needed or not. What happens to the linear effect when the quadratic term is included in the model? Also, graph the fitted probabilities from these two models overlaid on the same plot and (briefly) compare.
+
+```{r}
+dat$bmi2 <- (dat$bmi)^2
+##ran model with only linear term above, lm.1
+lm.2 <- glm(death ~ bmi + bmi2, family="binomial"(link="logit"), data=dat)
+summary(lm.2)
+
+anova(lm.1, lm.2, test="Chisq")
+```
+
+
+So here, testing $$Ho: \beta_2(bmi2) = 0$$ reduced model is sufficient
+
+With the alternative $$Ha: \beta_2(bmi2) \neq 0$$ full model is preferred. In this case, the linear model (reduced) is nested in the model with linear and quadratic BMI (full).
+
+
+**Based on the Likelihood Ratio Test, we fail to reject the null hypothesis, and conclude that the full model with quadratic BMI does not provide a signiﬁcantly better ﬁt than the reduced model (p =0.694).**
+
+ 
+The intercept tells us nothing in either model, because these are continuous values. In the model with only linear continous BMI, the $$\beta_1$$ coefficient is significant (P<.01). When the quadratic term of BMI is included in the model, it results in a decrease in the linear BMI coefficient and continous BMI is no longer a statistically signficant predictor of mortality (P= .613), and quadratic BMI is also not statistically significant (P=.6949). 
+
+
+
+```{r}
+curve(exp(coef(lm.2)[1] + coef(lm.2)[2]*x +coef(lm.2)[3]*x^2)/(1+ exp(coef(lm.2)[1] + coef(lm.2)[2]*x + coef(lm.2)[3]*x^2)), col="magenta", xlab="BMI", ylab="Logit(mortality)", xlim=c(15,60), ylim=c(0,1)) 
+curve(exp(coef(lm.1)[1] +coef(lm.1)[2]*x)/(1 + exp(coef(lm.1)[1] +coef(lm.1)[2]*x)), col="dodgerblue", add=T, xlim=c(15,60), ylim=c(0,1))
+```
+
+
+Looking at the two probabilities, the two models appear to predict almost the same outcome. However, with the model that includes quadratic BMI (magenta) makes BMI appear to have a slightly greater impact on mortality as BMI increases over 40 than the model with only linear BMI (dodgerblue). In general, adding quadratic BMI to the model does not give us more information about the prediction of mortality. As confirmed via the Anova test, we fail to reject the null, and favor the reduced model with only linear BMI. 
+
+
+###c) For the model including both linear and quadratic BMI, estimate the odds ratio for a 5-unit increase in BMI (comparing 25 to 20) and for a 5-unit increase in BMI (comparing 35 to 30). (Because we have a quadratic BMI term in the model, these two odds ratio estimates should differ, because BMI is “interacting with itself”.)
+
+```{r}
+summary(lm.2)
+```
+
+
+```{r}
+(25^2)-(20^2)
+(35^2)-(30^2)
+```
+
+
+```{r}
+exp((5*coef(lm.2)[2]) + ((25^2-20^2)*(coef(lm.2)[3])))
+exp((5*coef(lm.2)[2]) + ((35^2-30^2)*(coef(lm.2)[3])))
+
+```
+
+
+**Among the population of subjects of a BMI of 25, the odds of mortality in the study period are estimated to be exp(0.0287998*5 + 225*0.0003947)= 1.2621 greater than the odds among the population of subjects with a BMI of 20.** (could also interpret as 26% increase in the odds of mortality)
+
+**Among the population of subjects of a BMI of 35, the odds of mortality in the study period are estimated to be exp(0.0287998*5 + 3250.0003947*)= 1.312956 greater than the odds among the population of subjects with a BMI of 30.** (could also interpret as 31% increase in the odds of mortality for someone with a BMI of 35 vs. 30.)
+
+
+
+###d) Go back to using only the linear BMI term. Perform some descriptive statistics or graphical display to assess the association between BMI and participant sex. Then perform an appropriate set of logistic regression analyses to determine whether or not sex is a confounder or an effect modifier of the effect of (continuous) BMI on mortality. What are your conclusions (in words) about the effect of BMI on mortality, considering the additional effects of sex? (Hint: It may be helpful to create a 0/1 indicator variable for sex, e.g., “Female = 1 for females, Female = 0 for males”.)
+
+
+
+```{r}
+library(dplyr)
+p <- dat %>% 
+  ggplot(aes(group=sex, x=sex, y=bmi))
+p <- p + geom_boxplot() + theme(legend.position = "none", title = element_text(color = "Brown")) + ylab("BMI") +
+  xlab("Gender") +
+  ggtitle("Distribution of BMI between Men (1) and Women (2)")
+p
+```
+```{r}
+dat <- dat %>% mutate(sex= factor((sex-1))) %>% as.data.frame()
+```
+
+T-test 
+```{r}
+dat_f = subset(dat,sex==1)
+dat_m =  subset(dat,sex==0)
+t.test(dat_f$bmi, dat_m$bmi)
+```
+
+
+**According to the boxplot above, the distribution of BMI is wider for females than for males. While the average BMI of females is lower than males, there are more upper outliers for the female group (wider distribution). There is a positive skew of BMI for women. Using a Welch sample T-test, we can conclude that the average BMI among women are signficantly different to the average BMI among men (p<.001). It is good to test for confounding here, since it is reasonable that gender is associated with both BMI and risk of death, but it is not a consequence of either.**
+
+
+
+```{r}
+summary(lm.1)
+```
+
+```{r}
+lm.3 <- glm(death ~ bmi + sex, family=binomial(), data=dat)
+summary(lm.3)
+```
+
+**Based on the 10% rule of thumb, we can conclude that sex is not a confounder of the effect of BMI on mortality, given the $$\beta$$ coefficient changes by (0.051-0.047)/0.051 = 7.8%. However, this is still a relationship worth investigating since there is a change in the coefficient related to BMI that is between 5-10%.**
+
+```{r}
+lm.4 <- glm(death ~ bmi + sex + bmi*sex, family=binomial(), data=dat)
+summary(lm.4)
+```
+
+```{r}
+exp((coef(lm.4)[2])-(1.96*coef(summary(lm.4))[2,2]))
+exp((coef(lm.4)[2])+(1.96*coef(summary(lm.4))[2,2]))
+```
+
+
+
+```{r}
+##males
+exp(coef(lm.4)[2])
+##females
+exp(coef(lm.4)[2]+coef(lm.4)[4])
+```
+
+
+
+**Based on the logistic regression analysis, the coefficient for sex by bmi is statistically significant (p = 0.0005), so sex is a meaningful effect modifier for BMI and the log odds of mortality. The relationship  between BMI and the risk of  death is different for males and females.**
+
+**Among males, those with a one unit increase in BMI (k+1) are estimated to have a 1.009 times higher odds of mortality than for males with a BMI one unit lower (k). (could also interpret as .92% increase in the odds of mortality among males with a k+1 BMI)**
+
+**Among females, those with a one unit increase in BMI (k+1) are estimated to have a 1.0689 times higher odds of mortality than for females with a BMI one unit lower (k).**
+
+
+With 95% confidence, the odds ratio describing the association between BMI and mortality among males is between 983 and 1.036 (so for males, since we cannot definitively say that there is a strong interaction between BMI and mortality). This does coincide with the results of the Wald test (P>.05).
+
+
+###e) Now considering age and age category alone (not BMI or sex), compare models using (continuous) age, (ordinal) age category (i.e., age category used as a continuous covariate), and (categorical) age category. Which approach do you feel best models the effect of age on mortality? Justify your response. (It may be helpful to look at or plot fitted probabilities or run a hypothesis test.)
+
+For continous age:
+
+```{r}
+age.continuous <- glm(death~ age, family=binomial(), data=dat)
+summary(age.continuous)
+```
+
+For ordinal categorical age (treated as continous):
+
+```{r}
+age.ordinal <- glm(death ~ agecat, family=binomial(), data=dat)
+summary(age.ordinal)
+```
+
+For categorical age:
+
+```{r}
+age.category1 <- glm(death ~ as.factor(agecat), family=binomial(), data=dat)
+summary(age.category1)
+```
+
+
+
+```{r}
+AIC(age.ordinal, age.category1, age.continuous)
+BIC(age.ordinal, age.category1, age.continuous)
+
+```
+
+
+
+
+```{r}
+##age.ordinal, age.category1, age.continuous)
+
+#Graph fitted probability
+#fitted prob for continuous
+x=seq(30,70,0.01)
+p1=exp(coef(age.continuous)[1]+coef(age.continuous)[2]*x)/(1+exp(coef(age.continuous)[1]+(coef(age.continuous)[2]*x)))
+table(dat$agecat)                                     
+#fitted prob for ordinal probs
+x2=c(1,2,3,4)
+p2=exp(coef(age.ordinal)[1]+(coef(age.ordinal)[2]*x2))/(1+exp(coef(age.ordinal)[1]+coef(age.ordinal)[2]*x2))
+#fitted prob for categorical probs
+p3=rep(0,4)
+p3[1]=exp(coef(age.category1)[1])/(1+exp(coef(age.category1)[1]))
+for(i in 2:4)
+{
+  p3[i]=exp(coef(age.category1)[1]+coef(age.category1)[i])/(1+exp(coef(age.category1)[1]+coef(age.category1)[i]))
+}
+
+ggplot(data=as.data.frame(cbind(x,p1)),aes(x=x,y=p1))+geom_line(aes(color="Continuous"))+geom_segment(aes(x =30 , y = p2[1], xend = 40, yend = p2[1], colour = "Ordinal"))+geom_segment(aes(x =40 , y = p2[2]-0.005, xend = 50, yend = p2[2]-0.005,colour = "Ordinal"))+geom_segment(aes(x =50 , y = p2[3], xend = 60, yend = p2[3], colour = "Ordinal"))+geom_segment(aes(x =60 , y = p2[4], xend = 70, yend = p2[4], colour = "Ordinal"))+geom_segment(aes(x =30 , y = p3[1], xend = 40, yend = p3[1], colour = "Categorical"))+geom_segment(aes(x =40 , y = p3[2], xend = 50, yend = p3[2],colour = "Categorical"))+geom_segment(aes(x =50 , y = p3[3], xend = 60, yend = p3[3], colour = "Categorical"))+geom_segment(aes(x =60 , y = p3[4], xend = 70, yend = p3[4], colour = "Categorical"))
+
+```
+
+**Based on the results of the AIC/BIC evaluations, and the plotted probabilities, the continuous age model best models the effect of age on mortality.** 
+
+Hypothsesis testing: $$\H_0: B2 = 2B1$$
+
+Formal hypothesis: (Ho: the reduced model is sufficient) versus (H1: the full model is preferred)
+
+In this case, the full model is the categorical model and the reduced model is the ordinal model. 
+
+```{r}
+anova(age.ordinal, age.category1, test="Chisq")
+```
+
+
+**However, comparing ordinal and categorical models using a likelihood ratio test, we can confirm that the full model is preferred and reject the null hypothesis that the coefficients of the full (categorical) model are not significant (P=.039).**
+
+**While the continuous is best overall for fitting the data (since it uses all of the data), it may be more difficult to interpret and to generalize in practice. While some information is lost in the categorical model, it is beneficial to simplify interpretations, specifically in a clinical setting. This can be viewed from the graph of the probabilities, above.**
+
+
+
+
+
+###f) Perform an appropriate set of logistic regression analyses to determine whether or not age category is a confounder or an effect modifier of the possible effect of (continuous) BMI on mortality. What are your conclusions about the effect of BMI on mortality, considering the additional effects of age category?
+
+
+```{r}
+summary(lm.1)
+```
+
+```{r}
+lm.5 <- glm(death ~ bmi + as.factor(agecat), family=binomial(), data=dat)
+summary(lm.5)
+```
+
+
+
+**Based on the 10% rule of thumb, we can conclude that categorical age isa confounder on the effect of BMI on mortality, given the $$\beta$$ coefficient changes by (0.051-0.03025)/0.051 = 41%.**
+
+
+```{r}
+lm.6 <- glm(death ~ bmi + as.factor(agecat) + as.factor(agecat)*bmi, family=binomial(), data=dat)
+summary(lm.6)
+```
+
+**Based on the logistic regression analysis, the coefficient for categorical age by bmi is not statistically significant (p>0.05 for all age categories). Given this information, we do not need to calculate an OR for each individual age category.**
+
+```{r}
+exp(coef(lm.1)[2])
+exp(coef(lm.5)[2])
+```
+
+
+**When controlling for age, those with a one unit increase in BMI (k+1) are estimated to have a 1.031 times higher odds of mortality than for subjects with a BMI one unit lower (k). (could also interpret as 3.1% increase in the odds of mortality among those with k+1 BMI)**
