@@ -31,15 +31,15 @@ This website is broken down into two sections:
 
 #### Regression Analysis (R)
 
-    > [Github page with Rmarkdown and pdf files for each assignment](https://github.com/millerhillaryv/millerhillaryv.github.io/tree/master/regression_analysis_assigments)
+   > [Github page with Rmarkdown and pdf files for each assignment](https://github.com/millerhillaryv/millerhillaryv.github.io/tree/master/regression_analysis_assigments)
   
   
 #### Data Sceience (R)
 
-    > [Github page with Rmarkdown and pdf files for each assignment](https://github.com/millerhillaryv/millerhillaryv.github.io/tree/master/data_science_assignments)
+   > [Github page with Rmarkdown and pdf files for each assignment](https://github.com/millerhillaryv/millerhillaryv.github.io/tree/master/data_science_assignments)
 
 
 #### Social and Biological Networks (Python)
 
-    > [Github page with Python and pdf files for each assignment](https://github.com/millerhillaryv/millerhillaryv.github.io/tree/master/social_biological_networks_assignments)
+   > [Github page with Python and pdf files for each assignment](https://github.com/millerhillaryv/millerhillaryv.github.io/tree/master/social_biological_networks_assignments)
 
