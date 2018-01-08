@@ -1,0 +1,246 @@
+---
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+vi---
+title: "Homework 1: US gun murders"
+date: "September 6, 2017"
+output: html_document
+---
+
+# Homework 1
+
+Several of your friends live in Europe and are offered jobs in a US company with many locations all across the country. The job offers are great but news with headlines such as [**US Gun Homicide Rate Higher Than Other Developed Countries**](http://abcnews.go.com/blogs/headlines/2012/12/us-gun-ownership-homicide-rate-higher-than-other-developed-countries/) have theinm worried. Charts like this make them worry even more:
+
+![US gun homicides second chart](https://everytownresearch.org/wp-content/uploads/2016/07/GunTrends_murders_per_1000.png) 
+
+You want to convince your friends that the US is a large and diverse country with 50 very different states as well as the District of Columbia (DC). You want to recommend some state for each friend knowing that some like hiking, others would like to be close to several large cosmopolitan cities. Use data from the US murders data set:
+
+```{r}
+library(dslabs)
+data(murders)
+```
+
+1. What is the state with the most murders? Would you say this is the 
+most dangerous state? Hint: Make a plot showing the relationship between population size and number of murders.
+
+**California** has the most murders. At this point, it's unclear if California is the most dangerous state, because we are only looking at the raw number of murders vs. the total population. Murder rate would need to be calculated to determine this answer.
+
+```{r}
+murders$popscaled<- murders$population/1000
+
+plot(murders$popscaled, murders$total, xlab='Population (in thousands)', ylab='Total', main='State Population (in thousands) vs. Total Number of Murders', col="red")
+```
+
+```{r}
+sort(murders$total)
+order(murders$total)
+
+ind<-order(murders$total)
+murders$abb[ind]
+```
+
+```{r}
+i_max<-which.max(murders$total)
+murders$state[i_max]
+
+```
+```{r}
+i_min<-which.min(murders$total)
+murders$state[i_min]
+```
+
+
+2. Add a column to the murder data table called `murder_rate` with each states murder rate.
+
+```{r}
+library(dplyr)
+murders <- mutate(murders, murder_rate = total / population * 100000)
+```
+
+
+```{r}
+library(ggplot2)
+library(ggrepel)
+ggplot(murders,
+aes(y = murder_rate, x=seq_along(murder_rate))) +
+geom_point() + geom_text_repel(aes(label=abb), size = 3)+
+labs(title="Murder Rates across states", 
+         x="", y = "Murder Rate")
+```
+
+
+3. Describe the distribution of murder rates across states. How similar are states? How much do murder rates vary by geographical regions?
+
+
+
+```{r}
+filter(murders, murder_rate <= 0.71)
+filter(murders, murder_rate >=5)
+```
+
+```{r}
+i_max<-which.max(murders$murder_rate)
+murders$state[i_max]
+```
+
+
+When evaluating for murder rate, the answer to number one is much more clear. District of Columbia has the highest murder rate in the country: more than *double* the next closest state. While a dangerous city, it is still an interesting finding considering DC's strict gun laws; although the mechanism of murder is not listed. (Additionally, since DC does not have statehood, Louisiana would technically be the most dangerous 'state'.)
+
+
+```{r}
+ggplot(murders,
+aes(x=seq_along(murder_rate), y=murder_rate, fill=region))+
+geom_bar(stat="identity")+ theme_minimal()+
+  geom_text(aes(label=abb), vjust=-0.3, size=3.5)+
+  theme(legend.position="bottom")+
+labs(title="Murder Rates by Region", 
+     y = "Murder Rate (per 100,000 people)",x="")
+```
+
+```{r}
+murders %>% select(state, region, murder_rate) %>% filter(region=="West") %>% arrange(murder_rate)
+murders %>% select(state, region, murder_rate) %>% filter(region=="South") %>% arrange(murder_rate)
+murders %>% select(state, region, murder_rate) %>% filter(region=="Northeast") %>% arrange(murder_rate)
+murders %>% select(state, region, murder_rate) %>% filter(region=="North Central") %>% arrange(murder_rate)
+
+```
+
+ 
+  
+The murder rates vary quite a bit. The minimum murder rate, of .5 per 100,000, is Hawaii, while DC is the max at 16.5 per 100,00. The rates also vary across regions. When looking at the entire murder rate of the US:
+
+```{r}
+us_murder_rate <- murders %>% 
+  summarize( murder_rate= sum(total) / sum(population) * 100000) %>%
+  .$murder_rate
+
+us_murder_rate
+```
+
+Compared to the murder rates across entire regions:
+
+```{r}
+murders %>% 
+  group_by(region) %>%
+  summarize(avg_murder_rate= mean(sum(total) / sum(population) * 100000))
+``` 
+
+Yet, let's also look at the means for region murder rates when weighing each state equally (rather than total murders and  populations of regions):
+
+```{r}
+murders %>% 
+  group_by(region) %>%
+  summarize(avg_of_murder_rates= mean(murder_rate), variance=var(murder_rate))
+```
+
+
+It is evident that there is definitely an increase in murders in the South compared to the rest of the country. Once you dive into the South though, you can see that the variance is *very* high for the different murder rates across states in that region. Looking at the summarized data for the south, there are 5 states (West Virginia, Kentucky, Alabama, Oklahoma and North Carolina) that have murder rates below the national average. However, from the boxplot of murder rates in the south, the two upper outliers (LA and DC) are pulling up the average quite a bit. 
+
+Even though the West has the lowest average murder rates (when weighing each state equally), Nevada, New Mexico, California and Arizona all have murder rates above the US murder rate. 
+
+
+Comparing variance with the entire country:
+
+```{r}
+var(murders$murder_rate)
+```
+
+
+
+We can further evaluate by making histograms and box plots of murder rates for the entire country, and then by region:
+
+```{r}
+NC <-murders$region=="North Central"
+W <-murders$region=="West"
+S <-murders$region=="South"
+NE <-murders$region=="Northeast"
+
+
+hist(murders$murder_rate, col= "purple", density = 45, main = "Distribution of Murder Rates in the US", xlab = "Murder Rates", ylab="Number of states within each murder rate range")
+hist(murders$murder_rate[NC], col= "green", density = 45, main = "Murder Rates in the North Central Region", xlab = "Murder Rates", ylab="Number of states within each murder rate range")
+hist(murders$murder_rate[W], col= "blue", density = 45, main = "Murder Rates in the Western Region", xlab = "Murder Rates", ylab="Number of states within each murder rate range")
+hist(murders$murder_rate[S], breaks=10, col= "pink", main = "Murder Rates in the Southern Region", xlim=c(0,17), xlab = "Murder Rates", ylab="Number of states within each murder rate range")
+hist(murders$murder_rate[NE], col= "red", density = 45, main = "Murder Rates in the Northeastern Region", xlab = "Murder Rates", ylab="Number of states within each murder rate range")
+
+```
+
+```{r}
+boxplot(murders$murder_rate, main = "Distribution of all murder rates")
+boxplot(murders$murder_rate[NC], main = "Distribution of North Central murder rates")
+boxplot(murders$murder_rate[NE],main = "Distribution of Northeast murder rates")
+boxplot(murders$murder_rate[S], main = "Distribution of South murder rates")
+boxplot(murders$murder_rate[W], main = "Distribution of West murder rates")
+```
+
+
+Based on the histogram for the entire country, most states have a murder rates between 2-4; and about 20 states have a murder rate between 0-2. There is definitely variance among the regions, and while the south has the highest murder rate, it certainly has two upper outliers that slightly skew the region's data. Yet, it does only have one state with a murder rate between 0-1; although most southern states fall between 2-4.  As noted above, the West has the lowest murder rate, but there is a huge gap between the region's safest states and it's most dangerous states; so one cannot assume that every state in the West is below the national average for murders. The Northeastern states are pretty evenly distributed. The North Central states have a couple upper murder rates between 4 and 6, but most states are below 3.
+
+
+
+  
+4. Write a report for your friends reminding them that the US is a large and diverse country with 50 very different states as well as the District of Columbia (DC). Suppose one of your friends loves hiking, one wants to live in a warm climate, and another would like to be close to several large cosmopolitan cities. Recommend a desirable state for each friend.
+
+
+##Chosing a place to live in the United States
+
+
+While the U.S. murder rate can be a bit concerning when comparing to other countries, just remember that the U.S. is a very large country, and there are many safe places to live! Looking at the information above, while the South has the highest murder rates in the country, there are still many safe and wonderful places to live there! Additionally, while the West has the lowest in the country, it's still best to examine the information before picking a state from that region at random. 
+
+Above, I've calculated the murder rates for the each state in the United States, and compared them across the entire country and by region. 20 states in the U.S. have a murder rate less than 2; and  the safest state, Vermont, has a murder rate less than Belgium, Portugal, Ireland, Italy, and Canada. While  the second safest state, New Hampshire, is less than Canada and Portugal. 
+
+
+####Best Place to live for hiking
+
+
+If hiking and outdoors are the main interest, the West is likely where you want to live! Based on that, I would recommend the following states for their wonderful hiking (and safety!):
+
+* Hawaii (murder rate of 0.51)	
+* Idaho	(murder rate of 0.77)
+
+
+I listed two here depending on the type of weather you enjoy. Hawaii is great for hiking year round, but Idaho has great hiking in the summer, and skiing in the winter!
+
+![Hawaii](http://all-that-is-interesting.com/wordpress/wp-content/uploads/2015/08/history-hawaii-aerial.jpg)
+
+![Idaho](https://i.pinimg.com/736x/32/3a/3d/323a3db7fc327654733cd17ce6e79e54--camping-list-camping-checklist.jpg)
+
+[This website](http://www.fodors.com/news/photos/10-most-beautiful-hikes-in-the-us) has the best hikes in the U.S., yet it really depends on the type of hiking and weather you enjoy.
+
+
+
+####Best place to live for a warm climate
+
+If you would like to live in a warm climate, I recommend the South. Despite it's high murder rate, there are many great places to live there! DC and Louisiana both have murder rates that are outliers for the region, and are a big reason why the murder rate in the South is so high! If you look at the box plot and histograms for the South above, you can see the large variance in the rates among those states.
+
+
+Depending where in the South you are, the climate can change pretty drastically. While West Virginia has the lowest murder rate, it gets a lot colder than other states.
+
+In this case, I would recommend:
+
+* Alabama, or 
+* Kentucky 
+
+Both states have warm climates (Alabama is a little warmer), and are the safer of the southern states. 
+
+However, if moving away from the south, I would again suggest Hawaii! It has a wonderful climate and is incredibly safe. 
+
+![Alabama](http://www.alabamabyways.com/wp-content/uploads/2012/09/Leeds-Attraction-Alabama-Scenic-Byway-At-Leeds.jpg)
+
+![Kentucky](https://i.pinimg.com/736x/94/03/51/940351ae53d7d2143017e237eda9850f--louisville-kentucky-kentucky-derby.jpg)
+
+
+####Best place to live with city access
+
+If being close to several metropolitian areas is the main focus, the Northeast is your best option! There are many cities very close together, and each one is unique and great in it's own way (even the dangerous city of DC). 
+
+
+While Vermont and New Hampshire are the safest cities in this region, the are not that close to the major cities. Looking at a map of the Northeast, I would actually recommend New York! It's not the safest one list, but it's below the national average and incredibly convenient if you want to hop between cities on the East coast!
+
+![Map of Northeast](http://www.freeworldmaps.net/united-states/northeast/northeastern_us_political_map.gif)
+
+In general, living closer to cosmopolitan cities is likely to have higher murder rates in general, but living in the state of New York, and not directly in NYC will offer an incredibly safe and great place to live!
+
+![New York City](https://i.pinimg.com/736x/c0/9b/3d/c09b3d822a6a614112d96f26ea0d6d0b--city-night-lights-chrysler-building.jpg)

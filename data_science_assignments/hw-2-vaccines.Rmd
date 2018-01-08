@@ -1,0 +1,323 @@
+---
+title: "Homework 2: Vaccinations"
+date: "September 21, 2017"
+output: html_document
+---
+
+# Homework 2
+
+Vaccines have helped save millions of lives. In the 19th century, before herd immunization was achieved through vaccination programs, deaths from infectious diseases, like smallpox and polio, were common. However, today, despite all the scientific evidence for their importance, vaccination programs have become somewhat controversial.
+
+The controversy started with a [paper](http://www.thelancet.com/journals/lancet/article/PIIS0140-6736(97)11096-0/abstract) published in 1988 and lead by [Andrew Wakefield](https://en.wikipedia.org/wiki/Andrew_Wakefield) claiming 
+there was a link between the administration of the measles, mumps and rubella (MMR) vaccine, and the appearance of autism and bowel disease. 
+Despite much science contradicting this finding, sensationalists media reports and fear mongering from conspiracy theorists, led parts of the public to believe that vaccines were harmful. Some parents stopped vaccinating their children. This dangerous practice can be potentially disastrous given that the Center for Disease Control (CDC) estimates that vaccinations will prevent more than 21 million hospitalizations and 732,000 deaths among children born in the last 20 years (see [Benefits from Immunization during the Vaccines for Children Program Era — United States, 1994-2013, MMWR](https://www.cdc.gov/mmwr/preview/mmwrhtml/mm6316a4.htm)). 
+
+Effective communication of data is a strong antidote to misinformation and fear mongering. In this homework you are going to prepare a report to have ready in case you need to help a family member, friend or acquaintance that is not aware of the positive impact vaccines have had for public health.
+
+The data used for these plots were collected, organized and distributed by the [Tycho Project](http://www.tycho.pitt.edu/). They include weekly reported counts data for seven diseases from 1928 to 2011, from all fifty states. We include the yearly totals in the `dslabs` package:
+
+```{r cache=TRUE}
+#set chunk options
+knitr::opts_chunk$set(echo=TRUE) 
+knitr::opts_chunk$set(warning=FALSE)
+knitr::opts_chunk$set(message=FALSE)
+knitr::opts_chunk$set(tidy=TRUE)
+```
+
+```{r cache=TRUE}
+library(dslabs)
+data(us_contagious_diseases)
+head(us_contagious_diseases)
+```
+
+1. Use the `us_contagious_disease` and `dplyr` tools to create an object called `dat` that stores only the Measles data, includes a per 100,000 people rate, and removes Alaska and Hawaii since they only became states in the late 50s. Note that there is a `weeks_reporting` column. Take that into account when computing the rate.
+
+
+
+```{r cache=TRUE}
+library(dplyr)
+dat <- us_contagious_diseases %>% select(disease, state, year, weeks_reporting, count, population) %>% filter(disease=="Measles"  & !state %in% c("Alaska", "Hawaii")) 
+dat <- mutate(dat, rate = count*(52/weeks_reporting) /population * 100000)
+```
+
+
+2. Plot the Measles disease rates per year for California. Find out when the Measles vaccine was introduced and add a vertical line to the plot to show this year.
+
+
+```{r cache=TRUE}
+library(ggplot2)
+dat[dat$state=="California",] %>% ggplot(aes(x = year, y = rate)) + geom_line(aes(color="orange")) + theme(legend.position = "none") + geom_vline(xintercept = 1963, col="purple", linetype='dotted') + geom_text(aes(x=1962, label="1963: Measles Vaccine Introduced", y=700), color="purple", angle=90, vjust = 2, text=element_text(size=11)) + ylab("Measles Rate/100,000/year (sqrt scale)") +
+  xlab("Year") +
+  ggtitle("Plot of Measles Rates in California from 1928 to 2003")
+```
+
+3. Note these rates start off as counts. For larger counts we can expect more variability. There are statistical explanations for this which we don't discuss here. But transforming the data might help stabilize the variability such that it is closer across levels. For 1950, 1960, and 1970, plot the histogram of the data across states with and without the square root transformation. Which seems to have more similar variability across years? Make sure to pick binwidths that result in informative plots.
+
+```{r}
+library(ggplot2)
+library(gridExtra)
+library(ggthemes)
+
+histogram_rate <- dat %>% 
+  filter(year %in% c(1950,1960,1970) & !is.na(rate)) %>%
+  ggplot(aes(rate)) + 
+  geom_histogram(binwidth = 20, color = "black") +
+  facet_grid(.~year) +
+  ylab("Number of States") +
+  xlab("Rate per 100,000 per Year") +
+  ggtitle("Distribution of Measles Rates Across States for 1950, '60 and '70") + theme_calc()+ scale_colour_calc()
+
+histogram_squareroot <- dat %>% 
+  filter(year %in% c(1950,1960,1970) & !is.nan(rate)) %>%
+  ggplot(aes(rate)) + 
+  geom_histogram(binwidth = 2, color = "black") +
+  scale_x_continuous(trans = "sqrt") +
+  facet_grid(.~year, scales = "free_x") +
+  ylab("Number of States") +
+  xlab("Rate per 100,000 per Year (Square Root Scale)")+ theme_calc()+ scale_colour_calc()
+
+
+
+grid.arrange(histogram_rate, histogram_squareroot) 
+```
+
+
+
+**The one with the square root transformation has less variability than the one without the square root transformation. So the variability goes down with the application of the square root transformation.**
+
+4. Plot the Measles disease rates per year for California. Use the the square root transformation. Make sure that the numbers $0,4,16,36, \dots, 100$ appear on the y-axis. Find out when the Measles vaccine was introduced and add a vertical line to the plot to show this year:
+
+```{r}
+dat[dat$state=="California",] %>%
+ggplot(aes(x = year, y = rate)) + geom_line(aes(color="orange")) + theme(legend.position = "none", title = element_text(color = "Brown")) + geom_vline(xintercept = 1963, col="purple", linetype='dotted') + scale_y_sqrt(breaks= seq(0,50,2)^2) + geom_text(aes(x=1963, label="1963: Measles Vaccine Introduced", y=576), color="purple", angle=90, vjust = 2, text=element_text(size=8)) + ylab("Measles Rate/100,000/year (square root transformation)") +
+  xlab("Year") +
+  ggtitle("Measles Rates in California from 1928 to 2003")
+
+```
+
+5. Now, this is just California. Does the pattern hold for other states? Use boxplots to get an idea of the distribution of rates for each year, and see if the pattern holds across states.
+
+```{r}
+p <- dat %>% 
+  filter(year == year & !is.nan(rate)) %>%
+  ggplot(aes(group=year, x=year, y=rate))
+p + geom_boxplot() + theme(legend.position = "none", title = element_text(color = "Brown")) + geom_vline(xintercept = 1963, col="purple", linetype='dotted', size=1) + geom_text(aes(x=1963, label="1963: Measles Vaccine", y=2100), color="purple", angle=90, vjust = 2, text=element_text(size=8)) + scale_y_sqrt(breaks= seq(0,64,2)^2) + ylab("Measles Rate/100,000/year (square root transformation)") +
+  xlab("Year") +
+  ggtitle("Distribution of US Measles Rates from 1928 to 2003")
+```
+
+**This distribution holds true for other states as well, with some fluctuation prior to the introduction of the vaccine, yet with a visible drop in measles rates in the years following the vaccine.** 
+
+6. One problem with the boxplot is that it does not let us see state-specific trends. Make a plot showing the trends for all states. Add the US average to the plot. Hint: Note there are missing values in the data.
+
+
+```{r}
+us_average <- dat %>% 
+  filter(weeks_reporting>0) %>%
+  group_by(year) %>%
+  summarize(avg_measles= (sum((count)*(52/weeks_reporting)) / sum(population))* 100000)
+```
+
+```{r}
+p <- dat %>%  filter(rate %in% rate & !is.nan(rate)) %>%
+  ggplot() +
+  geom_line(aes(year,rate, col=state), show.legend=FALSE) + geom_line(data = as.data.frame(us_average), aes(year, avg_measles)) + scale_y_sqrt(breaks= seq(0,64,2)^2) + geom_vline(xintercept = 1963, col='black', linetype='dotted', size=1) + geom_text(aes(x=1963, label="1963: Measles Vaccine", y=2100), color="black", angle=90, vjust = 2, text=element_text(size=8)) + ylab("Measles Rate/100,000/year (square root transformation)") +
+  xlab("Year") +
+  ggtitle("Trend of U.S. Measles Rates from 1928 to 2003") 
+
+p + geom_text(data = dat[dat$year == "1975",], aes(x=1950, y=575, label = "US Average"), hjust = 0.7, vjust = 1)
+
+```
+
+
+
+7. One problem with the plot above is that we can't distinguish states from each other. There are just too many. We have three variables to show: year, state and rate. If we use the two dimensions to show year and state then we need something other than virtical or horizontal position to show the rates. Try using color. Hint: Use the the geometry `geom_tile` to tile the plot with colors representing disease rates. 
+
+```{r}
+dat %>% ggplot()+
+  geom_tile(aes(year,state, fill=rate)) +  scale_fill_gradientn(colours = c("green", "orange", "red"), trans="sqrt") + geom_vline(xintercept = 1963, col='black', linetype='dotted', size=1) + geom_text(aes(x=1961, y="Montana", label="1963: Measles Vaccine Introduced"), color="black", angle=90, vjust = 2, text=element_text(size=8)) + theme(axis.text.y = element_text(vjust = 0.5, size=7)) + ylab("State") +
+  xlab("Year") +
+  ggtitle("Trend of U.S. Measles Rates from 1928 to 2003") 
+```
+
+8. The plots above provide strong evidence showing the benefits of vaccines: as vaccines were introduced, disease rates were reduced. But did autism increase? Find yearly reported autism rates data and provide a plot that shows if it has increased and if the increase coincides with the introduction of vaccines.
+
+The data for this exercise was found using [CDC Reports](https://www.cdc.gov/ncbddd/autism/documents/Autism_PrevalenceSummaryTable_2011.pdf) and [Autism Speaks](http://www.nature.com/news/2011/111102/full/479022a/box/1.html) data. Please note that different rates were reported for the same years, and in some cases the datasets were evaluating diferent age groups. Due to this, the line plot has some fluctuations within years. I've also included a line to indicate the introduction of the MMR vaccine, a line coinciding with Andrew Wakefield's study, and the U.S. average in Measles rates, along with a line for it's introduction.
+
+
+```{r}
+autism <- data.frame(year=c(1962,	1967,	1975,	1984,	1985,	1987,	1988,	1994,	1996,	1996,	1998,	1999,	2000,	2001,	2002,	2002,	2004,	2006, 2006,	2008,	2008,	2009), rates=c(7,	31,	20,	40,	12,	110,	40,	470,	340,	470,	400,	110,	670,	440,	660,	650,	800,	900,	1020,	1300,	1130,	909))
+
+autism %>%
+  ggplot() +
+  geom_line(aes(year, rates), se = FALSE, col="green") + 
+  geom_vline(xintercept = 1971, col='black', linetype='dotted', size=1) + geom_text(aes(x=1971, y=144, label="1971: MMR Introduced"), color="black", angle=90, vjust = 2, text=element_text(size=8)) + geom_vline(xintercept = 1998, col='black', linetype='dotted', size=1) + geom_text(aes(x=1998, y=400, label="1998: Wakefield paper published"), color="black", angle=90, vjust = 2, text=element_text(size=8)) + scale_y_sqrt(breaks= seq(0,64,2)^2) + geom_line(data = as.data.frame(us_average), aes(year, avg_measles)) + geom_vline(xintercept = 1963, col='black', linetype='dotted', size=1) + geom_text(aes(x=1963, label="1963: Measles Vaccine", y=800), color="black", angle=90, vjust = 2, text=element_text(size=8)) + ggtitle("Vaccine Introductions and Trends in Autism Rates")
+```
+
+The above chart does indicate an increase in autism rates about 10 years following the introduction of the MMR vaccine. For several children in the study, the time they received the vaccination would have fallen about 10 year prior to the evaluation. However, the largest spike in the reported rates comes around the 1990s, which [coincides with evaluating based on the autism spectrum](https://sciencebasedmedicine.org/the-increase-in-autism-diagnoses-two-hypotheses/), rather than autism itself. The increase in Autism rates is nowhere near as immediate as the decline effect seen with vaccination introductions. In general, the data does not prove a strong correlation, but further investigation would need to be conducted, specifically on autism diagnostics, to draw final conclusions. 
+
+9. Use data exploration to determine if other diseases (besides Measles) have enough data to explore the effects of vaccines. Prepare a two page report with as many plots as you think are necessary to provide a case for the benefit of vaccines.
+
+
+###Vaccine Development and Disease Trends in the 1900s
+
+Vaccines are a heavily discussed topic among public health professionals and in the public, in large part due to the controversary for some regarding their actual health benefit. 
+
+However, does available data confirm the belief that the introduction of vaccines did, in fact, greatly decrease the prevalence of several major diseases in the 1900s? 
+
+#####Average U.S. Disease Rates Over Time
+
+
+The following plot contains the average U.S. rate for 7 different diseases from 1929 to 2011. The plotted data purposely leaves out any missing values, as gaps in data should not be inferred as '0' for rate, but rather as years that cannot be evaluated. For certain diseases with large data gaps, full analysis may not be feasible. 
+
+```{r}
+alldata <- us_contagious_diseases %>%
+  group_by(disease, year) %>%
+      filter(weeks_reporting > 0) %>%
+  summarize(avg_rate = (sum((count)*(52/weeks_reporting))/sum(population))*100000) %>%
+  ggplot() + scale_x_continuous(breaks = seq(1925,2015,5)) +
+  geom_line(aes(year, avg_rate, color = disease)) + scale_y_sqrt(breaks= seq(0,50,2)^2) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10)) + ylab("Average Rate (Square Root Transformation)") +
+  xlab("Year") +
+  ggtitle("Figure 1: Avg Rate of 7 U.S. Diseases from 1929 to 2011") + geom_vline(xintercept = 1971, col='black', linetype='dotted', size=1) + geom_text(aes(x=1971, y=144, label="1971: MMR Introduced"), color="black", angle=90, vjust = 2, text=element_text(size=8)) + geom_vline(xintercept = 1998, col='black', linetype='dotted', size=1) + geom_text(aes(x=1998, y=144, label="1998: Wakefield paper published"), color="black", angle=90, vjust = 2, text=element_text(size=8))
+alldata
+
+```
+
+The data above indicates large gaps in collection for several diseases, particularly the lack of data for diseases in the 1950s and 60s. The two lines above display the introduction of the MMR (Measles, Mumps, and Rubella) Vaccine, 1971, and the . It should be further indicated that [NIH published a retraction](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3136032/) of Wakefield's 1998 study, and that Wakefield, et al, "were held guilty of ethical violations".
+
+Table 1 displays each disease above and the reported date of each corresponding vaccine introduction:
+```{r}
+diseases <- data.frame(disease=c("Hepatitis A", "Measles", "Mumps", "Pertussis", "Polio", "Rubella", "Smallpox"), year_vaccine_introduced=c(1995, 1963, 1967, "1948*",1954,1969,1796))
+head(diseases,7)
+```
+*Note that the initial Pertussis vaccine dates back to 1914, [according to the Children's Hospital of Philadelphia](http://www.chop.edu/centers-programs/vaccine-education-center/vaccine-history/developments-by-year), and this date is the release of the DTP vaccine (pertussis, diphtheria, and tetanus) since 1914 predates our data set.
+
+**Polio**
+Based on information at the [CDC](https://www.cdc.gov/vaccines/parents/diseases/child/polio-indepth-color.pdf), the Polio vaccine was introduced in 1954. Given the dataset is misssing U.S. polio data from the mid 1950s to the mid 1970s, this disease will not be evaluated further for the role vaccines played in its disease trends. 
+
+**Pertussis**
+Additionally, the Polio and Pertussis (whopping Cough) data overlaps, which leads one to infer data entry or labeling errors in the set. Due to this, no conclusions can be made regarding either Pertussis nor Polio vaccines based on the available data set. Furthermore, the Pertussis vaccine pre-dates the available data. Additionally, the [CDC reports](https://www.cdc.gov/pertussis/fast-facts.html) an increase in Pertussis since the 1980s.
+
+
+
+```{r}
+plot_polio <- us_contagious_diseases %>% filter(disease == "Polio" & state != "Alaska" & state != "Hawaii")  %>%
+  group_by(year) %>%
+  mutate(rate = (count*((52/weeks_reporting))/population)*10^5) %>%
+  ggplot()+
+  geom_tile(aes(year,state, fill=rate)) +  scale_fill_gradientn(colours = c("green", "orange", "red"), trans="sqrt") + geom_vline(xintercept = 1954, col='black', linetype='dotted', size=1) + theme(axis.text.y = element_text(vjust = 0.5, size=7)) + ylab("State") +
+  xlab("Year") +
+  ggtitle("Trend of U.S. Polio Rates") 
+
+plot_pertussis <- us_contagious_diseases %>% filter(disease == "Pertussis" & state != "Alaska" & state != "Hawaii")  %>%
+  group_by(year) %>%
+  mutate(rate = (count*((52/weeks_reporting))/population)*10^5) %>%
+  ggplot()+ 
+  geom_tile(aes(year,state, fill=rate)) +  scale_fill_gradientn(colours = c("green", "orange", "red"), trans="sqrt") + theme(axis.text.y = element_text(vjust = 0.5, size=7)) + ylab("State") +
+  xlab("Year") + geom_vline(xintercept = 1948, col='black', linetype='dotted', size=1) +
+  ggtitle("Trend of U.S. Pertussis Rates") 
+
+grid.arrange(plot_polio, plot_pertussis, ncol=2)
+```
+
+The above plots display the stark gap of data for both Polio and Pertussis in the data set. However, while on the previous graph it appeared no data existed for Polio following the 1954 vaccine introduction, this does not appear to be the actual case (based on the dotted line of the Polio tiled graph). Regardless, not enough data exists after the introduction to draw conclusions about the vaccine's effectiveness. As stated, the trends for Pertussis and Polio are identical, indicating some possible data entry or collection error. Therefore, these diseases will not further evaluated. 
+
+
+**Smallpox**
+Finally, the Smallpox data, while displayed in the late 1920s in Figure 1, does not date back to the origin of the vaccine in 1796. [According to the CDC](https://www.cdc.gov/smallpox/history/history.html), Smallpox was eradicated in North America by 1952. This is an interesting report, as the data indicates some prescence of Smallpox in the United States right before 1952 (according to the Purple line in Figure 2), yet we do not have access to data after that point to evaluate further. 
+
+```{r}
+plot_smallpox <- us_contagious_diseases %>% group_by(year) %>% filter(disease == "Smallpox" & state != "Alaska" & state != "Hawaii")  %>%
+      filter(weeks_reporting > 0) %>%
+  summarize(avg_rate = (sum((count)*(52/weeks_reporting))/sum(population))*100000) %>%
+  ggplot()+
+  geom_line(aes(year,avg_rate)) +  scale_fill_gradientn(colours = c("green", "orange", "red"), trans="sqrt") + theme(axis.text.y = element_text(vjust = 0.5, size=7)) + ylab("Rate") +
+  xlab("Year") +
+  ggtitle("Trend of U.S. Smallpox Rates") 
+plot_smallpox
+```
+
+ While the trend of small pox indicates a decline in prevalence, the data begins so far after the introduction of the vaccine, it's difficult to draw conclusions. However, [the CDC](https://www.cdc.gov/smallpox/history/history.html) does report Smallpox vaccines being utilized throughout the 1940s. 
+
+###Hepatitis A
+
+The Hepatitis A Vaccine was introduced in 1995. 
+
+```{r}
+hepatitis_a <- us_contagious_diseases %>%
+  filter(disease == "Hepatitis A" & state != "Alaska" & state != "Hawaii")  %>%
+  group_by(year) %>%
+  mutate(rate = ((sum(count)*((52*n())/sum(weeks_reporting)))/sum(population))*10^5) %>%
+ggplot() +
+  geom_line(aes(year, rate)) +
+  geom_vline(xintercept = 1995, col = "black", linetype='dotted') +
+  scale_y_continuous(trans = "sqrt") + ylab("Hep A Rate/100,000/year (square root transformation)") + xlab("Year") +
+  ggtitle("Average U.S. Hepatitis A Rates") 
+
+plot_hep <- us_contagious_diseases %>% filter(disease == "Hepatitis A" & state != "Alaska" & state != "Hawaii")  %>%
+  group_by(year) %>%
+  mutate(rate = (count*((52/weeks_reporting))/population)*10^5) %>%
+  ggplot()+
+  geom_tile(aes(year,state, fill=rate)) +  scale_fill_gradientn(colours = c("green", "orange", "red"), trans="sqrt") + geom_vline(xintercept = 1995, col='black', linetype='dotted', size=1) + theme(axis.text.y = element_text(vjust = 0.5, size=7)) + ylab("State") +
+  xlab("Year") +
+  ggtitle("Trend of State Hep A Rates") 
+
+grid.arrange(hepatitis_a, plot_hep, ncol=2)
+```
+
+Evaluating the tables above, the dotted line represents the introduction of the Hepatitis A vaccine. While some fluctuation from the 1960s to 1995, there is a clear indication of a decline in the average U.S. Hepatitis A rate about 2 years following the introduction of the vaccine. The tiled plot indicates that several states were not burdened by high Hepatitis A rates at the time of the vaccine introduction, but the tile turns considerably green quickly following it's introduction. However, some states do have some lag time in the effects. 
+
+###Mumps
+
+The Mumps vaccine was introduced in 1967. The plots below compare the trend of the average U.S. Mumps rate and displa a heat box of individual state trends fluctuations in mumps rates over time. 
+```{r}
+mumps <- us_contagious_diseases %>%
+  filter(disease == "Mumps" & state != "Alaska" & state != "Hawaii")  %>%
+  group_by(year) %>%
+  mutate(rate = ((sum(count)*((52*n())/sum(weeks_reporting)))/sum(population))*10^5) %>%
+ggplot() +
+  geom_line(aes(year, rate)) +
+  geom_vline(xintercept = 1967, col = "black", linetype='dotted') +
+  scale_y_continuous(trans = "sqrt") + ylab("Mumps Rate/100,000/year (square root transformation)") + xlab("Year") +
+  ggtitle("Average U.S. Mumps Rates")
+
+plot_mumps <- us_contagious_diseases %>% filter(disease == "Mumps" & state != "Alaska" & state != "Hawaii")  %>%
+  group_by(year) %>%
+  mutate(rate = (count*((52/weeks_reporting))/population)*10^5) %>%
+  ggplot()+
+  geom_tile(aes(year,state, fill=rate)) +  scale_fill_gradientn(colours = c("green", "orange", "red"), trans="sqrt") + geom_vline(xintercept = 1967, col='black', linetype='dotted', size=1) + theme(axis.text.y = element_text(vjust = 0.5, size=7)) + ylab("State") +
+  xlab("Year") +
+  ggtitle("Trend of State Mumps Rates") 
+
+grid.arrange(mumps, plot_mumps, ncol=2)
+```
+
+Considering our data does not contain the years leading up to the Mumps vaccine (indicated by the dotted black line) or immediately after, it is difficult to draw conclusions regarding the direct correlation of the vaccine. However, the average rate of the disease does decline rapidly in the years following its introdution. However, from the tile plot, it's clear that several states are missing large amounts of data on the disease prevalence. 
+
+###Rubella
+```{r}
+rubella <- us_contagious_diseases %>%
+  filter(disease == "Rubella" & state != "Alaska" & state != "Hawaii")  %>%
+  group_by(year) %>%
+  mutate(rate = ((sum(count)*((52*n())/sum(weeks_reporting)))/sum(population))*10^5) %>%
+ggplot() +
+  geom_line(aes(year, rate)) +
+  geom_vline(xintercept = 1969, col = "black", linetype='dotted') +
+  scale_y_continuous(trans = "sqrt") + ylab("Rubella Rate/100,000/year (square root transformation)") + xlab("Year") +
+  ggtitle("Average U.S. Rubella Rates")
+
+plot_rubella <- us_contagious_diseases %>% filter(disease == "Rubella" & state != "Alaska" & state != "Hawaii")  %>%
+  group_by(year) %>%
+  mutate(rate = (count*((52/weeks_reporting))/population)*10^5) %>%
+  ggplot()+
+  geom_tile(aes(year,state, fill=rate)) +  scale_fill_gradientn(colours = c("green", "orange", "red"), trans="sqrt") + geom_vline(xintercept = 1969, col='black', linetype='dotted', size=1) + theme(axis.text.y = element_text(vjust = 0.5, size=7)) + ylab("State") +
+  xlab("Year") +
+  ggtitle("Trend of State Rubella Rates") 
+
+grid.arrange(rubella, plot_rubella, ncol=2)
+```
+
+Again, the data indicates a decline in rates that corresponds with the 1969 vaccine introduction (black dotted line). Despite some considerable gaps in data for individual states, the general trends confirms the prediction that the vaccine impacted rates across the United States. 
+
+For the diseases with available data, a decline in U.S. disease rates coincides with the introduction of the respective vaccine. It is also notable that while individual graphs of Rubella, Measles, Mumps, and Hepatitis A show a decline in disease rates post vaccine introduction, the rates for both Measles and Hepatitis A indicated some decline (or at least fluctuation downward) prior to the vaccine. Based on our available data, the decline in prevalence for the aforementioned diseases is highly correlated with vaccine administration. 

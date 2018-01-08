@@ -1,0 +1,560 @@
+---
+title: "Netflix Challenge"
+output: html_document
+---
+
+```{r, echo = FALSE}
+library(knitr)
+opts_chunk$set(cache = TRUE, message = FALSE)
+```
+
+Recommendation systems use rating data from many products and users to make recommendations for a specific user. Netflix uses a recommendation system to predict your ratings for a specific movie.
+
+In October 2006, Netflix offered a challenge to the data science community: _improve our recommendation algorithm by 10% and win a million dollars_. In September 2009, [the winners were announced](http://bits.blogs.nytimes.com/2009/09/21/netflix-awards-1-million-prize-and-starts-a-new-contest/). You can read a good summary of how the winning algorithm was put together [here](http://blog.echen.me/2011/10/24/winning-the-netflix-prize-a-summary/), and a more detailed explanation [here](http://www.netflixprize.com/assets/GrandPrize2009_BPC_BellKor.pdf).
+
+![winners](http://graphics8.nytimes.com/images/2009/09/21/technology/netflixawards.480.jpg)
+
+In this homework, you will build your own recommendation system. You will submit predicted recommendations for a test data set where we have kept the actual recommendations hidden. We will then check your performance on these predictions and have our own Netflix challenge. The winning team, defined by the best root mean squared error (RMSE), will receive a prize. The set that you will have to predict is available on GitHub [here](https://github.com/datasciencelabs/data/blob/master/movielens-test.csv.gz).
+
+RMSE was the metric used to judge entries in the Netflix challenge. The lower the RMSE was on Netflix's quiz set between the submittedrating predictions and the actual ratings, the better the method was. We will be using RMSE to evaluate our machine learning models in  this homework as well.
+
+$$\mbox{RMSE} = \sqrt{\frac{1}{N}\sum_{i=1}^N (\hat{Y}_i - Y_i)^2}$$
+
+Download and load the [large training data set which is compressed](https://github.com/datasciencelabs/data/blob/master/movielens-train.csv.gz) into R. Train a machine learning model of you choice. You may wish to utilize a technique such as cross-validation to optimize any parameters associated with your model, and you may implement any modelling technique you feel comfortable with. This may include regression, regularization techniques, matrix decompositions (such as utilized by the winning team [here](http://www.netflixprize.com/assets/ProgressPrize2008_BellKor.pdf)), etc.
+
+**Hint 1**: You can read in compressed file with `read_csv(gzfile(filename))`
+
+```{r}
+library(dslabs)
+library(knitr)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(ggplot2)
+library(gridExtra)
+ds_theme_set()
+```
+
+
+**Hint 2**: Use the `RMSE()` function below to check your accuracy.
+```{r}
+RMSE <- function(true_ratings, predicted_ratings){
+    sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+
+```
+
+Download the test data set available on GitHub [here](https://github.com/datasciencelabs/data/blob/master/movielens-test.csv.gz). Make predictions to fill in the `NA`s and save a file with the same format but with the ratings filled in to your repo. Submit this as a `.csv` file with your name in the file name (the file does not need to be compressed), along with the code you utilized to train the model, as part of your homework. 
+
+##once you have all of your predictions, average them together to get your final prediction - normally will result in a stronger modelf
+
+
+###Read in the Data
+
+```{r}
+#read in the data (the other code didn't seem to work with Windows; troubleshooted with TAs)
+
+moviestrain <- read_csv(gzfile("./GitHub Assignments/data/movielens-train.csv"))
+moviestest <- read_csv(gzfile("./GitHub Assignments/data/movielens-test.csv"))
+moviestrain2 <- moviestrain #just to be able to access the original data if needed
+moviestrain <- moviestrain2
+```
+
+### Data Exploration
+
+```{r}
+#summary of available data
+summary(moviestrain)
+head(moviestrain)
+```
+
+```{r}
+#looking at summary of data
+moviestrain %>% 
+  summarize(total_users = n_distinct(userId),
+            total_movies=n_distinct(movieId), 
+            average_rating=mean(rating))
+
+```
+
+
+```{r}
+moviestrain %>% group_by(userId) %>% 
+  summarize(n_movies=n()) %>% 
+  summarize(median = median(n_movies), max = max(n_movies), mean = mean(n_movies))
+```
+
+
+```{r}
+#distribution of ratings
+moviestrain %>% 
+  sample_n(10000) %>% 
+  ggplot(aes(rating)) + 
+  geom_bar(color="black")
+```
+
+The average rating is 3.52745, and there is a good amount of variation. 
+
+
+### Create training  and Test set
+
+```{r}
+
+#splitting data into training and test sets
+
+set.seed(760)
+n_test <- round(nrow(moviestrain) / 10)
+test_indices <- sample(1:nrow(moviestrain), n_test, replace=FALSE)
+test <- moviestrain[test_indices,]
+train <- moviestrain[-test_indices,]
+rm(moviestrain) #to save space 
+gc()
+```
+
+
+### trying naive (just using the average)
+
+```{r}
+average <- mean(train$rating)
+expected <- rep(average, nrow(test))
+just_average <- RMSE(test$rating, expected)
+just_average <- formattable(just_average, digits = 5, format = "f")
+
+just_average
+```
+
+##will store RMSE 
+```{r}
+rmse_results <- data_frame(method = "Using the average rating", RMSE = just_average)
+```
+
+
+#now will look at the average of each movie
+
+```{r}
+train %>% group_by(movieId) %>% 
+  filter(n()>=1000) %>% 
+  summarize(avg_rating = mean(rating)) %>% 
+  qplot(avg_rating, geom = "histogram", color = I("black"), bins=30, data = .)
+```
+
+
+```{r}
+mu <- mean(train$rating) 
+movie_means <- train %>% 
+  group_by(movieId) %>% 
+  summarize(b_i = mean(rating - mu))
+
+qplot(b_i, geom = "histogram", color = I("black"), bins=25, data = movie_means)
+```
+
+```{r}
+joined <- test %>% 
+  left_join(movie_means, by='movieId')
+any(is.na(joined$b_i))
+```
+
+```{r}
+joined <- replace_na(joined, list(b_i=0))
+```
+
+
+```{r}
+predicted_ratings <- mu + joined$b_i
+rmse_results_movieavg <- RMSE(predicted_ratings, test$rating)
+
+rmse_results_movieavg <- formattable(rmse_results_movieavg, digits = 5, format = "f")
+rmse_results_movieavg
+```
+
+```{r}
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Movie means b estimate model",  
+                                     RMSE = rmse_results_movieavg))
+rmse_results %>% kable 
+
+```
+
+Explore biggest errors
+
+```{r}
+test %>% mutate(prediction = predicted_ratings, 
+                residual = predicted_ratings- test$rating) %>%
+  arrange(desc(abs(residual))) %>% select(movieId, prediction, residual) %>% slice(1:10) %>% kable
+
+```
+
+## evaluating average rating per user
+Will add in a b estimate for the average rating per user
+
+```{r}
+train %>% group_by(userId) %>% 
+  filter(n()>=1000) %>% 
+  summarize(avg_rating = mean(rating)) %>% 
+  qplot(avg_rating, geom = "histogram", color = I("black"), bins=30, data = .)
+```
+
+```{r}
+user_rating_mean <- train %>% 
+  group_by(userId) %>% 
+  summarize(b_i2 = mean(rating - mu))
+
+qplot(b_i2, geom = "histogram", color = I("black"), bins=25, data = user_rating_mean)
+```
+
+Will try just by average user rating, here
+
+```{r}
+joined <- joined %>% 
+  left_join(user_rating_mean, by='userId')
+any(is.na(joined$b_i2))
+
+```
+
+```{r}
+joined <- replace_na(joined, list(b_i2=0))
+```
+
+
+```{r}
+user_predict <- mu + joined$b_i2
+rmse_results_user <- RMSE(user_predict, test$rating)
+
+rmse_results_user <- formattable(rmse_results_user, digits = 5, format = "f")
+rmse_results_user
+```
+
+```{r}
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Using average user model",  
+                                     RMSE = rmse_results_user))
+rmse_results %>% kable
+```
+
+So just using the average user rating actually decreased the accuracy.
+
+
+
+Will explore a sample of the timestamp data to see if there is any significance 
+
+## Timestamp rating?
+
+```{r}
+head(train)
+#convert timestamps
+
+library(anytime)
+anytime(1425941529)
+max(moviestrain2$timestamp)
+anytime(1501829870)
+min(moviestrain2$timestamp)
+anytime(1089652004)
+```
+
+```{r}
+train$time <- anytime(train$timestamp)
+tail(train)
+
+```
+
+
+
+```{r}
+train3 <- train
+train2 <- train[sample(1:nrow(train), 50,
+  	replace=FALSE),]
+#creating timestamp categories per 5 years, to see if any significance in year; using the following Unix timestamp cut offs:
+#January 1 2000:946684800
+#january 1 2005: 	1104537600
+#January 1 2010:1262304000
+#January 1 2015: 	1420070400
+
+
+train2$tiemcat <- ifelse(train2$timestamp < 946684800, 
+c("before2000"), 
+  ifelse(train2$timestamp < 1104537600, "2000_2005",
+         ifelse(train2$timestamp < 1262304000, "2005_2010",
+                ifelse(train2$timestamp < 1420070400, "2010_2015", "Now" ))))
+
+head(train2)
+
+#confirmed it works, so adding to my data
+
+
+train$tiemcat <- ifelse(train$timestamp < 946684800, 
+c("before2000"), 
+  ifelse(train$timestamp < 1104537600, "2000_2005",
+         ifelse(train$timestamp < 1262304000, "2005_2010",
+                ifelse(train$timestamp < 1420070400, "2010_2015", "Now" ))))
+```
+
+
+```{r}
+#looking if difference depending on year
+train %>% group_by(movieId, tiemcat) %>% 
+  summarize(avg_rating = mean(rating)) %>% 
+  qplot(avg_rating, geom = "histogram", color = I("black"), bins=30, data = .)
+
+```
+
+
+
+```{r}
+timestamp_rating_mean <- train %>% 
+  group_by(tiemcat) %>% 
+  summarize(b_i3 = mean(rating - mu))
+
+qplot(b_i3, geom = "histogram", color = I("black"), bins=25, data = timestamp_rating_mean)
+```
+
+Is there really a significance between timestamp and the movie rating?
+
+```{r}
+train2 <- train[sample(1:nrow(train), 5000,
+  	replace=FALSE),]
+
+mod2 <- glm(rating ~ tiemcat + movieId, data=train2)
+summary(mod2)
+```
+
+This doesn't seem to be overly significant, although this approach may not have been the best way to evaluate it (just testing some things here). Will try just by using the average by timestamp, this likely won't result in a good RMSE:
+
+
+```{r}
+
+joined$tiemcat <- ifelse(test$timestamp < 946684800, 
+c("before2000"), 
+  ifelse(joined$timestamp < 1104537600, "2000_2005",
+         ifelse(joined$timestamp < 1262304000, "2005_2010",
+                ifelse(joined$timestamp < 1420070400, "2010_2015", "Now" ))))
+
+joined <- joined %>% 
+  left_join(timestamp_rating_mean, by='tiemcat')
+any(is.na(joined$b_i3))
+
+```
+
+```{r}
+timecat_predict <- mu + joined$b_i3
+rmse_results_time <- RMSE(timecat_predict, test$rating)
+
+rmse_results_time <- formattable(rmse_results_time, digits = 5, format = "f")
+rmse_results_time
+```
+
+```{r}
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Timestamp average model",  
+                                     RMSE = rmse_results_time))
+rmse_results %>% kable
+
+```
+Actually surprised it's not worse? Yet likely won't utilize this; although potentially could use a small portion of a weighted average to determine this
+
+##weighted average of movie user and movie IDs:
+
+```{r}
+head(joined)
+
+predict_avgall_1 <- mu + joined$b_i2 + joined$b_i3 + joined$b_i
+rmse_results_avgall <- RMSE(predict_avgall_1, test$rating)
+
+rmse_results_avgall <- formattable(rmse_results_avgall, digits = 5, format = "f")
+rmse_results_avgall
+```
+
+```{r}
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Average of averages",  
+                                     RMSE = rmse_results_avgall))
+rmse_results %>% kable
+```
+
+Will try this again by applying a little less weight to the timestamp category, and see if this improves the outcome:
+
+```{r}
+predict_wtavg_1 <- mu + joined$b_i2 + .6*joined$b_i3 + joined$b_i
+rmse_results_wt1 <- RMSE(predict_wtavg_1, test$rating)
+
+rmse_results_avgall <- formattable(rmse_results_avgall, digits = 5, format = "f")
+rmse_results_avgall
+```
+
+
+```{r}
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Average all, weighted",  
+                                     RMSE = rmse_results_wt1))
+rmse_results %>% kable
+```
+
+It may actually make sense to remove the timestamp $b_i3$ completely:
+
+```{r}
+predict_wtavg_2 <- mu + joined$b_i2 + joined$b_i
+rmse_results_wt2 <- RMSE(predict_wtavg_2, test$rating)
+
+rmse_results_wt2 <- formattable(rmse_results_wt2, digits = 5, format = "f")
+rmse_results_wt2
+```
+
+So, it seems like timestamp shoudl be removed, or just  need to figure out the best weighting
+
+```{r}
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Average of averages,without time",  
+                                     RMSE = rmse_results_wt2))
+rmse_results %>% kable
+```
+
+For now, I'll ignore the timestamp category, and try to weigh the user and movie ratings. Going to take a little less weight for the user ratings
+
+```{r}
+predict_wtavg_3 <- mu + .8*joined$b_i2 + joined$b_i
+rmse_results_wt3 <- RMSE(predict_wtavg_3, test$rating)
+
+rmse_results_wt3 <- formattable(rmse_results_wt3, digits = 5, format = "f")
+rmse_results_wt3
+```
+
+```{r}
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Weighted user",  
+                                     RMSE = rmse_results_wt3))
+rmse_results %>% kable
+```
+
+This improved slightly! Let's try some different weights:
+
+```{r}
+predict_wtavg_4 <- mu + .79*joined$b_i2 + joined$b_i
+rmse_results_wt4 <- RMSE(predict_wtavg_4, test$rating) 
+
+rmse_results_wt4 <- formattable(rmse_results_wt4, digits = 5, format = "f") 
+rmse_results_wt4
+```
+
+```{r}
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Weighted User2",  
+                                     RMSE = rmse_results_wt4))
+rmse_results %>% kable
+```
+
+Again, slightly better. Let's manipulate the movie average:
+
+```{r}
+predict_wtavg_5 <- mu + .79*joined$b_i2 + .86*joined$b_i
+rmse_results_wt5 <- RMSE(predict_wtavg_5, test$rating) 
+
+rmse_results_wt5 <- formattable(rmse_results_wt5, digits = 5, format = "f") 
+rmse_results_wt5
+```
+
+```{r}
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Weighted User and Movie",  
+                                     RMSE = rmse_results_wt5))
+rmse_results %>% kable
+```
+
+This is the best so far. Now going to try to apply acutal regularization to minimize RMSE (using lambda to shrink the estimate):
+
+$$
+\hat{b}_i(\lambda) = \frac{1}{\lambda + n_i} \sum_{u=1}^{n_i} \left(Y_{u,i} - \hat{\mu}\right)
+$$
+
+```{r}
+#creating a new bi_3 that incorporates lambda
+lambda <- 2.5
+movie_reg_means <- train %>% 
+  group_by(movieId) %>% 
+  summarize(b_i3 = sum(rating - mu)/(n()+lambda))
+
+join <- test %>% 
+  left_join(movie_reg_means, by='movieId') %>% 
+  replace_na(list(b_i3=0))
+
+#checking RMSE
+predicted_ratings <- mu + joined$b_i3
+model1_regularization <- RMSE(predicted_ratings, test$rating)
+
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Movie Effect Model Lambda=2.5",  
+                                     RMSE = model1_regularization ))
+rmse_results %>% kable
+
+```
+
+
+Test the best level of lambda:
+
+```{r}
+lambdas <- seq(0,15)
+mu <- mean(train$rating)
+tmp <- train %>% 
+  group_by(movieId) %>% 
+  summarize(sum = sum(rating - mu), n_i = n())
+
+rmses <- sapply(lambdas, function(l){
+  join <- test %>% 
+    left_join(tmp, by='movieId') %>% 
+    mutate(b_i3 = sum/(n_i+l)) %>%
+    replace_na(list(b_i3=0))
+    predicted_ratings <- mu + joined$b_i
+    return(RMSE(predicted_ratings, test$rating))
+})
+qplot(lambdas, rmses) 
+#will use lambda= 2.5 
+```
+
+
+
+
+```{r}
+
+#now looking at the user effect using regularization, and utilizing a second lambda = 8
+
+#will call this b_i4
+
+lambda_2 <- 8
+
+user_reg_means <- train %>% 
+  left_join(movie_reg_means) %>%
+  mutate(resids = rating - mu - b_i3) %>% 
+  group_by(userId) %>%
+  summarize(b_i4 = sum(resids)/(n()+lambda_2))
+
+join <- test %>% 
+  left_join(movie_reg_means, by='movieId') %>% 
+  left_join(user_reg_means, by='userId') %>% 
+  replace_na(list(b_i3=0, b_i4=0))
+
+predicted_ratings <- mu + join$b_i3 + join$b_i4
+model1_regularization <- RMSE(predicted_ratings, test$rating)
+
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Movie and User Effect Regularization",  
+                                     RMSE = model1_regularization ))
+
+rmse_results %>% kable
+
+```
+
+This is the best one so far! RMSE = .8689037!
+
+Adding predictions to the movielens_test data, and saving as CSV:
+
+```{r}
+
+movielens_test <- movielens_test %>% 
+  left_join(movie_reg_means, by='movieId') %>% 
+  left_join(user_reg_means, by='userId') %>% 
+  replace_na(list(b_i3=0, b_i4=0))
+
+movielens_test$rating <- mu + movielens_test$b_i3 + movielens_test$b_i4
+movielens_test <- movielens_test %>% select(userId, movieId, rating, timestamp)
+
+write_csv(movielens_test, "hillarymiller.csv")
+```

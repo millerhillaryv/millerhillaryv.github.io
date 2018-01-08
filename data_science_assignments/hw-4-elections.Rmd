@@ -1,0 +1,216 @@
+---
+title: "Homework 4: Election Forecasting"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# How reliable is polling data?
+
+Leading up to the 2016 presidential election, many pollsters predicted that the Democratic candidate, Hillary Clinton, would win a ["decisive victory."][wapo] However, as we all know, the election was won by the Republican candidate, and current president, Donald Trump. During class we discussed how general biases, not accounted for by prediction models, often affect many pollsters in the same way. In this homework, you are going to further investigate these biases through comparisons across both national and state-level races. 
+
+The repository for this homework includes an **.RData** file, `election_polls.RData`, containing a `data.frame` (`polls`) with several years worth of polling data (2008, 2010, 2012, 2014 and 2016). The polls cover federal elections for house representatives, senators and the president, and includes polling data from up to a year before the election date. The Presidential election polls were collected from the [RealClearPolitics website][rcp] and the Congressional and Senatorial polls were collected from the [FiveThirtyEight Github repository][thirty]. 
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+load("elections_polls.RData")
+```
+
+The `polls` `data.frame` contains the following columns:
+
+- `race`: race identifier year_electiontype_location.
+- `race_state`: race identifier year_electiontype_state. In contrast to the previous column, this identifier ignores information about counties and only contains information at the state level.
+- `state`: abbreviation of state of the election
+- `state_long`: full name of the state
+- `type`: type of race. Could be either presidential (Pres), senatorial election (Sen-G) or house representative election (House-G).
+- `year`: election year
+- `pollster`: name of the pollster
+- `samplesize`: size of the sample used in the poll
+- `startdate`: start date of the pole. If this date was not available, this will be the same as enddate
+- `enddate`: end date of the pole
+- `democrat_name`: name of the democratic candidate
+- `democrat_poll`: percentage of people from the poll saying they would vote for the democratic candidate 
+- `democrat_result`: actual percentage of people voting for the democratic candidate in the election
+- `republican_name`: name of the republican candidate
+- `republican_poll`: percentage of people from the poll saying they would vote for the republican candidate 
+- `republican_result`: actual percentage of people voting for the republican candidate in the election
+
+## Problem 1
+Subset the `polls` `data.frame` to only keep polls which ended within approximately 6 weeks preceding any [Election Day][election-day] (i.e. in October or November). You will be using this smaller data set for the remainder of this homework. Hint: you might need to extract the month from the `enddate`. The `strftime` function might be useful for this.
+
+```{r}
+recent_polls <- polls %>%
+  mutate(end_month =  as.numeric(strftime(enddate, format= "%m"))) %>% 
+  filter(end_month %in% c("10","11"))
+```
+
+
+## Problem 2
+For each poll, calculate the difference between the fraction of people saying they would vote for the Republican Party and the fraction of people saying they would vote for the Democratic Party. Add these values to your `data.frame` as a new column, `spread`. Similarly, calculate the true (actual) difference between the fraction of people who ended up voting for the Republican Party and the fraction of people who ended up voting for the Democratic Party. Again, add the true (actual) difference as a new column, `spread_act`, to your `data.frame`. 
+
+
+```{r, message=FALSE, comment=FALSE}
+recent_polls <- recent_polls %>% mutate(spread =  (republican_poll-democrat_poll)/100,
+         spread_act = (republican_result-democrat_result)/100)
+
+```
+
+## Problem 3
+Now, we are going to collapse polls for each race. For this, we group polls by the type, year, and state of the corresponding election. There are several polls for each race, and each one provides an approximation of the real $\theta$ value. Generate a point estimate for each race, $\hat{\theta}$, that summarizes the polls for that race using the following steps: [1] use the column `race_state` to group polls by type, year, and state, and [2] use the `summarize` function to generate a new `data.frame` called `reduced_polls` with the following columns:
+
+1. the mean `spread`, *I've called  mine avg*
+2. the standard deviation of the `spread`,
+3. the mean `spread_act`, and
+4. the number of polls per race. 
+
+Make sure you also keep information about the `year` and `state` of each race in this new `data.frame`.
+
+```{r}
+
+reduced_polls <- recent_polls %>%  group_by(race_state) %>%
+  summarize(state = state[1], year =  year[1], type=type[1], avg = mean(spread), sd_spread =  sd(spread), avg_spread_act = mean(spread_act), n=n())
+reduced_polls
+```
+
+
+
+## Problem 4
+Note that the previous question merges different congressional elections held in the same year across districts in a state. Thus, using the collapsed `data.frame` from the previous question, filter out races from congressional elections. Also, filter out races that had less than 3 polls. The `reduced_polls` `data.frame` should now contain only Presidential and Senatorial elections. For each remaining race, build a 95\% confidence interval for $\hat{\theta}$. Include the boundaries of these confidence intervals in the `reduced_polls` `data.frame`.
+
+```{r}
+reduced_polls <- reduced_polls %>% filter(type != "House-G" , n >= 3) %>%
+  mutate(lower = avg - 1.96*sd_spread/sqrt(n), upper = avg + 1.98*sd_spread/sqrt(n)) %>% print
+```
+
+
+
+## Problem 5
+For each election type in each year, calculate the fraction of states where the actual result was **outside** of the 95% confidence interval. Which race was the most unpredictable, (i.e. for which race was the polling data most innacurate compared to the actual result)?
+
+```{r}
+reduced_polls %>% group_by(type, year) %>%
+  summarize(fraction_miss = sum(avg_spread_act < lower | avg_spread_act > upper)/sum(n())) %>% print
+```
+
+The 2012 senate race was the most unpredictable,  with .76 (or 76%) of pollsters having confidence intervals that did not contain the true result. Alternatively, the 2014 Senatorial race was the most accurately predicted, with 40% outside the 95% confidence interval (meaning 60% predicted within the 95% confidence interval), followed by the 2008 Presidential race. 
+
+## Problem 6
+Using data from *only* the 2016 presidential election, make a plot of states ($x$-axis) and $\hat{\theta}$ estimates ($y$-axis). Using the `gg_errorbar` function, include the 95\% confidence intervals of $\hat{\theta}$ for each state. Finally, using a different color, include the actual results for each state. Describe the resulting plot.
+
+```{r warning=FALSE}
+require(ggplot2)
+reduced_polls %>% 
+  filter(year == 2016 &  type == 'Pres') %>% mutate(state = reorder(state, avg_spread_act)) %>%
+  ggplot(aes(state,avg)) +
+  geom_col() +
+  geom_errorbar(aes(x=state,ymin=lower,ymax=upper), col="red") +
+  geom_point(aes(state, avg_spread_act), col="blue") + theme(axis.text.x = element_text(angle=90, hjust =  1)) + ylab("Spread") +
+  xlab("State") +
+  ggtitle("2016 Presedential race outcome predictions (red) vs true outcome (blue)")
+
+```
+
+The above plot demonstrates that many state pollsters, although not all, reported either entirely democrat or entirelyrepublican predictions. This is not surprising given that many states historically go only blue or red. Additionally, it seems more polls that predicted Clinton to win made predictions that were within the confidence interval of her true winning margin, but even the  states that predicted Trump would win did not accurately predict by how much. So, even the polls with bias to the republican candidate did not accurately predict the spread for those states. Many of the states with close races (PA, WI, FL, etc) generally had the entire 95% CI for Clinton. Even though D.C. has the largest confidence interval, the pollsters did not predict how much she would overwhelmingly win those electoral votes. However, this is looking at aggregate pollster data, so some individual pollsters may have predicted more accurately.
+
+
+## Problem 7
+Which states did Donald Trump win in the 2016 presidential election, despite the entire 95\% confidence intervals being in favor of his opponent, Hillary Clinton?
+
+```{r}
+reduced_polls %>% filter(year == 2016 &  type == 'Pres') %>%
+  filter(avg_spread_act > 0 & upper < 0)
+  
+```
+
+5 states including, Florida, Michigan, North Carolina, Pennsylvania, and Wisconsin, all had the entire 95% confidence interval in favor of Hillary Clinton. While Florida and North Carolina were only predicted in her favor by less than 2%, the small standard deviation still resulted in a prediction that favored Clinton over Trump. Based on pollster predictions, Wisconsin's result was the most surprising, given the 6% spread in favor of Clinton.
+
+## Problem 8
+Looking again at all races, calculate the the difference between $\theta$ and $\hat{\theta}$ (Hint: use the data for all races in the `reduced_polls` object created in Problem 4). We call this the bias term. Add these values as a column to `reduced_polls`.
+
+```{r}
+reduced_polls <- reduced_polls %>% 
+  mutate(bias = avg_spread_act - avg) %>% print
+
+```
+
+## Problem 9
+Plot and compare the distribution of bias terms for races in each year. Describe the bias patterns. Are these centered around zero? Give possible explanations. 
+
+
+```{r warning=FALSE}
+reduced_polls %>% ggplot(aes(x=as.factor(year), y = bias, fill=type)) + geom_boxplot()  + ylab("Bias") +
+  xlab("Year") +
+  ggtitle("Distribution of bias for races, by year")
+```
+
+In general, the distribution of the bias terms has been trending further away from 0. As expected with elections, the bias tends to flip back and forth between parties, as pollsters generally expect party changover during each cycle.  In 2008, the  overall bias did not seem widespread (overall, what was predicted is what actually happened, although we can't see per-race data here; but on average, the pollsters appear more accurate) with a few upper outliers and one lower outlier for the  Presedential race. For the graph above, the 2016 pollsters overall were less republican favored, even though the republicans won, and therefore the bias in 2016 is positive and larger than other years. In 2012 it was the opposite. The democrats were less favored in  both the Presidential and the Senate races, but the results were not as expected. The bias for 2010 and 2014 could also be based on the public opinion of the President's party, and which particular seats were up for reelection. Overall, though, the absolute value of the biases has increased since 2008. 
+
+
+## Problem 10
+Using the [__fiftystater__](https://cran.r-project.org/web/packages/fiftystater/index.html) package, create a plot for each of the last three presidential elections showing the bias estimates for each state on a map of the United States. Describe any patterns or differences between the three elections.
+
+
+```{r warning=FALSE}
+library(fiftystater)
+library(mapproj)
+reduced_polls <- reduced_polls %>% filter(type=='Pres')
+
+data("fifty_states") 
+
+library(gridExtra)
+library(colorplaner)
+reduced_2008 <- reduced_polls %>% filter(year==2008) %>%
+  mutate(state_long = tolower(state.name [match (state, state.abb)]))
+reduced_2012 <- reduced_polls %>% filter(year==2012) %>%
+  mutate(state_long = tolower(state.name [match (state, state.abb)]))
+reduced_2016 <- reduced_polls %>% filter(year==2016) %>%
+  mutate(state_long = tolower(state.name [match (state, state.abb)]))
+
+
+p <- ggplot(fifty_states, aes(map_id = id)) + geom_map(map = fifty_states, fill="lightgrey", colour = alpha("grey", 3/4), size = 0.4)+ geom_map(aes(map_id = state_long, fill=bias), colour=alpha("darkgrey", 3/4), data=reduced_2008, map=fifty_states) +
+  expand_limits(x = fifty_states$long, y = fifty_states$lat) +
+  coord_map() +
+  scale_x_continuous(breaks = NULL) + 
+  scale_y_continuous(breaks = NULL) +
+  labs(x = "", y = "") +
+  theme(legend.position = "bottom", panel.background = element_rect(), element_blank())+ fifty_states_inset_boxes() +
+ggtitle("2008") + scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits=c(-0.2, 0.2))
+
+q <- ggplot(fifty_states, aes(map_id = id)) + geom_map(map = fifty_states, fill="lightgrey",colour = alpha("grey", 3/4), size = 0.4)+ geom_map(aes(map_id = state_long, fill=bias), colour=alpha("darkgrey", 3/4), data=reduced_2012, map=fifty_states) +
+  expand_limits(x = fifty_states$long, y = fifty_states$lat) +
+  coord_map() +
+  scale_x_continuous(breaks = NULL) + 
+  scale_y_continuous(breaks = NULL) +
+  labs(x = "", y = "") +
+  theme(legend.position = "bottom", panel.background = element_rect(), element_blank())+ fifty_states_inset_boxes()+
+ggtitle("2012") + scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits=c(-0.2, 0.2))
+
+
+r <- ggplot(fifty_states, aes(map_id = id)) + geom_map(map = fifty_states,fill="lightgrey", colour = alpha("grey", 3/4), size = 0.4)+ geom_map(aes(map_id = state_long, fill=bias), col=alpha("darkgrey", 3/4), data=reduced_2016, map=fifty_states) +
+  expand_limits(x = fifty_states$long, y = fifty_states$lat) +
+  coord_map() +
+  scale_x_continuous(breaks = NULL) + 
+  scale_y_continuous(breaks = NULL) +
+  labs(x = "", y = "") +
+  theme(legend.position = "bottom", panel.background = element_rect(), element_blank())+
+ggtitle("2016")+ scale_fill_gradient2(low = "blue", mid = "white", high = "red", limits=c(-0.2, 0.2))
+
+grid.arrange(p,q,r, ncol=3, top = "Bias of U.S. Presidential Election Outcome Predictions")
+
+
+```
+
+From the maps above, one can conclude that overall, the bias in 2008 was less extreme than in 2016. While there is missing data for both the 2008 and 2012 elections (which in part could be due to states that are so commonly red or blue, a state had fewer than 3 polls and was filtered out of our data set), the colors for those maps are less extreme overall (or have more states that are white or lightly colored) than the 2016 map. As shown in the map legend, the further from 0 that the bias is, the darker the color. The red or blue color does not necessarily mean that the pollsters picked the opposite party to win, but it means the pollster did not favor the winning party enough (or could mean they did not favor them at all). In 2008, only about 4 states have intense colors, which aligns with the boxplot displayed in question 9, since the biases were overall closer to 0 in the 2008 Presedential election, with the exception of 4 outliers. However, 2016 has many states that are red, reflecting the boxplots from question 9 and the graph in question 6, that Trump was not favored to the extent that he ended up winning. With the exception of New York in 2008, states appear to maintain their color from year to year (unless no data was available). Looking at the data more closely, the red New York state in 2008 is not due to New York going republican in 2008, but due to New York being biased more strongly for the Democrats (about 30%) than what actually occured (about 27%). The same is true for Montana in 2008; the state still went republican in 2008, but not to the extent the pollsters anticipated, hence the blue color on the 2008 map. For all three election cycles, in general, pollsters have bias in their predictions.
+
+
+
+
+
+
+
+[wapo]:https://www.washingtonpost.com/news/monkey-cage/wp/2016/11/08/a-comprehensive-average-of-election-forecasts-points-to-a-decisive-clinton-victory/
+[election-day]:https://en.wikipedia.org/wiki/Election_Day_(United_States)
+[rcp]: https://www.realclearpolitics.com/
+[thirty]: https://github.com/fivethirtyeight/data
