@@ -32,7 +32,7 @@ This website is broken down into two sections:
     
     > [Final Report PDF](https://github.com/millerhillaryv/millerhillaryv.github.io/blob/master/regression-analysis-of-the-effect-of-punishment-regimes-on-crime-rates/final_draft.pdf)
   
- > [Code and analysis]((https://github.com/millerhillaryv/millerhillaryv.github.io/tree/master/regression-analysis-of-the-effect-of-punishment-regimes-on-crime-rates))
+   > [Code and analysis](https://github.com/millerhillaryv/millerhillaryv.github.io/tree/master/regression-analysis-of-the-effect-of-punishment-regimes-on-crime-rates)
 
 ### Assignments (separated by course)
 
